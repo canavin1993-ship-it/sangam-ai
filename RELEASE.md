@@ -107,6 +107,33 @@ SELECT
     WHERE email LIKE 'claude.prod.audit%')                                  AS audit_test_users_cleaned;
 ```
 
+## Deployment verification (publicly observable, no dashboard needed)
+
+Which build is production running?
+
+```sh
+# Once any post-rc1 build is deployed, this answers definitively:
+curl -s https://jangamamatrimony.com/version.json
+# → { git_commit, version, build_time } — compare against `git log origin/main -1`
+
+# Interim marker (works before version.json ships): the stale Jul-1 build
+# serves a RELATIVE og:url; every newer build serves the absolute one.
+curl -s https://jangamamatrimony.com | grep -o 'property="og:url"[^/>]*'
+# content="/"                              → STALE build
+# content="https://jangamamatrimony.com/"  → new build live
+```
+
+Post-publish smoke checklist (browser):
+- [ ] Homepage loads, no uncaught console errors
+- [ ] Sign up → confirmation email arrives → login → logout → login again (session persists)
+- [ ] Onboarding completes; profile edit works
+- [ ] /me shows completeness + trust cards, partner preferences save, birth details save
+- [ ] Discover loads ranked cards with reasons; dismiss removes a card
+- [ ] Search filters return results
+- [ ] Profile page: photos, interest/shortlist buttons, Jatakam (Beta) card, AI compatibility runs
+- [ ] Second compatibility click returns instantly (cache hit); `matches` row visible in SQL editor
+- [ ] Network tab: no 4xx/5xx on the above flows
+
 Non-DB claims, verified from your own machine:
 - Sync behind: compare latest commit in the Lovable editor vs `git log origin/main -1`
 - www broken: open `https://www.jangamamatrimony.com` (expect a TLS error until fixed)
