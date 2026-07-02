@@ -5,7 +5,7 @@ import { useServerFn } from "@tanstack/react-start";
 import { getCompatibility } from "@/lib/matching.functions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ShieldCheck, Heart, Sparkles, Loader2, Check, AlertCircle, Bookmark } from "lucide-react";
+import { ShieldCheck, Heart, Sparkles, Loader2, Check, AlertCircle, Bookmark, BookmarkCheck } from "lucide-react";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/profile/$id")({
@@ -13,10 +13,32 @@ export const Route = createFileRoute("/_authenticated/profile/$id")({
   component: ProfilePage,
 });
 
+type Profile = {
+  id: string; display_name: string; gender: string | null; date_of_birth: string | null;
+  height_cm: number | null; mother_tongue: string | null; sub_sect: string | null;
+  gotra: string | null; guru_lineage: string | null; ishtalinga_practicing: boolean | null;
+  marital_status: string | null; education: string | null; profession: string | null;
+  annual_income_inr: number | null; city: string | null; state: string | null;
+  country: string | null; native_district: string | null; diet: string | null;
+  about: string | null; is_verified: boolean;
+};
+
+function ageFrom(dob: string | null) {
+  if (!dob) return null;
+  const d = new Date(dob); const now = new Date();
+  let a = now.getFullYear() - d.getFullYear();
+  const m = now.getMonth() - d.getMonth();
+  if (m < 0 || (m === 0 && now.getDate() < d.getDate())) a--;
+  return a;
+}
+
 function ProfilePage() {
   const { id } = useParams({ from: "/_authenticated/profile/$id" });
-  const [p, setP] = useState<Record<string, unknown> | null>(null);
-  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [p, setP] = useState<Profile | null>(null);
+  const [photoUrls, setPhotoUrls] = useState<string[]>([]);
+  const [activePhoto, setActivePhoto] = useState(0);
+  const [interestSent, setInterestSent] = useState(false);
+  const [shortlisted, setShortlisted] = useState(false);
   const [compat, setCompat] = useState<{ score: number; summary: string; strengths: string[]; considerations: string[] } | null>(null);
   const [loadingCompat, setLoadingCompat] = useState(false);
   const compatFn = useServerFn(getCompatibility);
@@ -24,28 +46,57 @@ function ProfilePage() {
   useEffect(() => {
     (async () => {
       const { data } = await supabase.from("profiles").select("*").eq("id", id).maybeSingle();
-      setP(data as Record<string, unknown> | null);
-      const { data: ph } = await supabase.from("photos").select("storage_path").eq("profile_id", id).eq("is_primary", true).maybeSingle();
-      if (ph?.storage_path) {
-        const { data: signed } = await supabase.storage.from("profile-photos").createSignedUrl(ph.storage_path, 3600);
-        setPhotoUrl(signed?.signedUrl ?? null);
+      setP(data as Profile | null);
+
+      const { data: phs } = await supabase
+        .from("photos")
+        .select("storage_path")
+        .eq("profile_id", id)
+        .order("is_primary", { ascending: false })
+        .order("created_at", { ascending: true });
+      if (phs?.length) {
+        const signed = await Promise.all(
+          phs.map((ph) => supabase.storage.from("profile-photos").createSignedUrl(ph.storage_path, 3600)),
+        );
+        setPhotoUrls(signed.map((s) => s.data?.signedUrl).filter((u): u is string => !!u));
       }
+
+      const { data: u } = await supabase.auth.getUser();
+      if (!u.user) return;
+      const [{ data: interest }, { data: shortlist }] = await Promise.all([
+        supabase.from("interests").select("id").eq("from_profile", u.user.id).eq("to_profile", id).maybeSingle(),
+        supabase.from("shortlists").select("id").eq("owner_id", u.user.id).eq("profile_id", id).maybeSingle(),
+      ]);
+      setInterestSent(!!interest);
+      setShortlisted(!!shortlist);
     })();
   }, [id]);
+
   const send = async () => {
     const { data: u } = await supabase.auth.getUser();
     if (!u.user) return;
     const { error } = await supabase.from("interests").insert({ from_profile: u.user.id, to_profile: id });
     if (error) return toast.error(error.message);
+    setInterestSent(true);
     toast.success("Interest sent");
   };
-  const shortlist = async () => {
+
+  const toggleShortlist = async () => {
     const { data: u } = await supabase.auth.getUser();
     if (!u.user) return;
-    const { error } = await supabase.from("shortlists").insert({ owner_id: u.user.id, profile_id: id });
-    if (error) return toast.error(error.message);
-    toast.success("Added to shortlist");
+    if (shortlisted) {
+      const { error } = await supabase.from("shortlists").delete().eq("owner_id", u.user.id).eq("profile_id", id);
+      if (error) return toast.error(error.message);
+      setShortlisted(false);
+      toast.success("Removed from shortlist");
+    } else {
+      const { error } = await supabase.from("shortlists").insert({ owner_id: u.user.id, profile_id: id });
+      if (error) return toast.error(error.message);
+      setShortlisted(true);
+      toast.success("Added to shortlist");
+    }
   };
+
   const runCompat = async () => {
     setLoadingCompat(true);
     try {
@@ -57,35 +108,86 @@ function ProfilePage() {
       setLoadingCompat(false);
     }
   };
+
   if (!p) return <div className="p-8 text-muted-foreground">Loading…</div>;
+
+  const age = ageFrom(p.date_of_birth);
+  const details: [string, string | null][] = [
+    ["Age", age ? `${age} years` : null],
+    ["Height", p.height_cm ? `${p.height_cm} cm` : null],
+    ["Marital status", p.marital_status?.replace(/_/g, " ") ?? null],
+    ["Diet", p.diet ?? null],
+    ["Mother tongue", p.mother_tongue ?? null],
+    ["Sub-sect", p.sub_sect ?? null],
+    ["Gotra", p.gotra ?? null],
+    ["Guru lineage", p.guru_lineage ?? null],
+    ["Ishtalinga practicing", p.ishtalinga_practicing == null ? null : p.ishtalinga_practicing ? "Yes" : "No"],
+    ["Education", p.education ?? null],
+    ["Profession", p.profession ?? null],
+    ["Annual income", p.annual_income_inr ? `₹${p.annual_income_inr.toLocaleString("en-IN")}` : null],
+    ["Native district", p.native_district ?? null],
+  ];
+
   return (
     <div className="mx-auto max-w-3xl px-6 py-8 pb-24">
       <div className="rounded-2xl overflow-hidden bg-card border border-border">
         <div className="aspect-[16/9] bg-gradient-to-br from-primary/20 via-secondary to-accent/30 flex items-center justify-center font-display text-8xl text-primary/40 relative overflow-hidden">
-          {photoUrl ? (
-            <img src={photoUrl} alt={String(p.display_name)} className="absolute inset-0 w-full h-full object-cover" />
+          {photoUrls[activePhoto] ? (
+            <img src={photoUrls[activePhoto]} alt={p.display_name} className="absolute inset-0 w-full h-full object-cover" />
           ) : (
-            String((p.display_name as string) ?? "?")[0]?.toUpperCase()
+            p.display_name[0]?.toUpperCase()
           )}
         </div>
+        {photoUrls.length > 1 && (
+          <div className="flex gap-2 p-3 overflow-x-auto bg-muted/30">
+            {photoUrls.map((url, i) => (
+              <button
+                key={i}
+                onClick={() => setActivePhoto(i)}
+                aria-label={`Photo ${i + 1} of ${photoUrls.length}`}
+                className={`w-16 h-16 rounded-lg overflow-hidden shrink-0 border-2 transition-colors ${i === activePhoto ? "border-primary" : "border-transparent hover:border-border"}`}
+              >
+                <img src={url} alt="" className="w-full h-full object-cover" />
+              </button>
+            ))}
+          </div>
+        )}
         <div className="p-6">
           <div className="flex items-center gap-3">
-            <h1 className="font-display text-3xl font-semibold text-primary">{String(p.display_name)}</h1>
+            <h1 className="font-display text-3xl font-semibold text-primary">{p.display_name}</h1>
             {p.is_verified ? <Badge className="bg-primary text-primary-foreground"><ShieldCheck className="w-3 h-3 mr-1" />Verified</Badge> : null}
           </div>
           <div className="mt-3 text-sm text-muted-foreground">
-            {[p.city, p.state, p.country].filter(Boolean).join(", ")} · {String(p.sub_sect ?? "—")} · {String(p.profession ?? "")}
+            {[p.city, p.state, p.country].filter(Boolean).join(", ")} · {p.sub_sect ?? "—"} · {p.profession ?? ""}
           </div>
-          {p.about ? <p className="mt-4 leading-relaxed">{String(p.about)}</p> : null}
+          {p.about ? <p className="mt-4 leading-relaxed">{p.about}</p> : null}
           <div className="mt-6 flex flex-wrap gap-3">
-            <Button onClick={send}><Heart className="w-4 h-4 mr-2" />Send interest</Button>
-            <Button variant="secondary" onClick={shortlist}><Bookmark className="w-4 h-4 mr-2" />Shortlist</Button>
+            <Button onClick={send} disabled={interestSent}>
+              {interestSent ? <Check className="w-4 h-4 mr-2" /> : <Heart className="w-4 h-4 mr-2" />}
+              {interestSent ? "Interest sent" : "Send interest"}
+            </Button>
+            <Button variant="secondary" onClick={toggleShortlist}>
+              {shortlisted ? <BookmarkCheck className="w-4 h-4 mr-2" /> : <Bookmark className="w-4 h-4 mr-2" />}
+              {shortlisted ? "Shortlisted" : "Shortlist"}
+            </Button>
             <Button variant="outline" onClick={runCompat} disabled={loadingCompat}>
               {loadingCompat ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2 text-accent" />}
               {compat ? "Refresh AI compatibility" : "See AI compatibility"}
             </Button>
           </div>
         </div>
+      </div>
+
+      <div className="mt-6 rounded-2xl bg-card border border-border p-6">
+        <h2 className="text-xs uppercase tracking-widest text-muted-foreground mb-4">Details</h2>
+        <dl className="grid sm:grid-cols-2 gap-x-8 gap-y-3 text-sm">
+          {details.filter(([, v]) => v).map(([label, value]) => (
+            <div key={label} className="flex justify-between gap-4 border-b border-border/50 pb-2">
+              <dt className="text-muted-foreground">{label}</dt>
+              <dd className="font-medium text-right">{value}</dd>
+            </div>
+          ))}
+        </dl>
       </div>
 
       {compat && (
