@@ -8,16 +8,18 @@ import type { PartnerExpectations } from "./partner-expectations";
 // and any cached AI compatibility score for pairs the viewer participates in.
 // Owner-only signals (verifications detail, family links, reports) are NOT
 // available to viewers, so "trust" here is the visible is_verified flag.
-// Weights renormalize over the signals actually available per candidate.
+// Base-signal weights, tuned by scripts/eval.ts: preferenceFit must outweigh
+// the verified badge, or verified-but-mismatched profiles outrank unverified
+// strong matches. Cached AI compatibility is blended in separately (see
+// COMPAT_BLEND), never renormalized into this denominator.
 const WEIGHTS = {
-  compatibility: 35, // cached AI score, when present
-  verified: 25,
-  preferenceFit: 20, // viewer's expectations vs candidate fields
+  preferenceFit: 30, // viewer's expectations vs candidate fields
+  verified: 15,
   activity: 10,
   completeness: 10, // visible-field completeness
 } as const;
 
-export type RankSignalKey = keyof typeof WEIGHTS;
+export type RankSignalKey = keyof typeof WEIGHTS | "compatibility";
 
 export type RankCandidate = {
   id: string;
@@ -109,6 +111,12 @@ function visibleCompleteness(c: RankCandidate): number {
   return fields.filter((f) => f != null && f !== "").length / fields.length;
 }
 
+// Compat share of the final score when a cached AI score exists. Blending
+// (instead of renormalizing compat into the denominator) keeps the base score
+// comparable across candidates: per-candidate denominators let candidates
+// with LESS data renormalize higher — missing data must never dominate.
+const COMPAT_BLEND = 0.35;
+
 export function rankCandidate(
   c: RankCandidate,
   viewerPE: PartnerExpectations,
@@ -119,17 +127,27 @@ export function rankCandidate(
     activity: activityFreshness(c.updated_at),
     completeness: visibleCompleteness(c),
   };
-  if (cachedCompatScore != null) parts.compatibility = cachedCompatScore / 100;
+  // preferenceFit availability is viewer-level (did the viewer set prefs?),
+  // so the base denominator is identical for every candidate in a run.
   const fit = preferenceFit(viewerPE, c);
   if (fit != null) parts.preferenceFit = fit;
 
   let weighted = 0;
   let total = 0;
-  for (const key of Object.keys(parts) as RankSignalKey[]) {
+  for (const key of Object.keys(parts) as Array<keyof typeof WEIGHTS>) {
     weighted += WEIGHTS[key] * (parts[key] as number);
     total += WEIGHTS[key];
   }
-  return { score: total === 0 ? 0 : Math.round((weighted / total) * 100), parts };
+  const base = total === 0 ? 0 : (weighted / total) * 100;
+
+  if (cachedCompatScore != null) {
+    parts.compatibility = cachedCompatScore / 100;
+    return {
+      score: Math.round(COMPAT_BLEND * cachedCompatScore + (1 - COMPAT_BLEND) * base),
+      parts,
+    };
+  }
+  return { score: Math.round(base), parts };
 }
 
 /**
