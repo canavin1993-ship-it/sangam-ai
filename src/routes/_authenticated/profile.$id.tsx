@@ -5,7 +5,18 @@ import { useServerFn } from "@tanstack/react-start";
 import { getCompatibility } from "@/lib/matching.functions";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ShieldCheck, Heart, Sparkles, Loader2, Check, AlertCircle, Bookmark, BookmarkCheck } from "lucide-react";
+import {
+  ShieldCheck,
+  Heart,
+  Sparkles,
+  Loader2,
+  Check,
+  AlertCircle,
+  Bookmark,
+  BookmarkCheck,
+  MessageCircle,
+} from "lucide-react";
+import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/_authenticated/profile/$id")({
@@ -14,18 +25,64 @@ export const Route = createFileRoute("/_authenticated/profile/$id")({
 });
 
 type Profile = {
-  id: string; display_name: string; gender: string | null; date_of_birth: string | null;
-  height_cm: number | null; mother_tongue: string | null; sub_sect: string | null;
-  gotra: string | null; guru_lineage: string | null; ishtalinga_practicing: boolean | null;
-  marital_status: string | null; education: string | null; profession: string | null;
-  annual_income_inr: number | null; city: string | null; state: string | null;
-  country: string | null; native_district: string | null; diet: string | null;
-  about: string | null; is_verified: boolean;
+  id: string;
+  display_name: string;
+  gender: string | null;
+  date_of_birth: string | null;
+  height_cm: number | null;
+  mother_tongue: string | null;
+  sub_sect: string | null;
+  gotra: string | null;
+  guru_lineage: string | null;
+  ishtalinga_practicing: boolean | null;
+  marital_status: string | null;
+  education: string | null;
+  profession: string | null;
+  annual_income_inr: number | null;
+  city: string | null;
+  state: string | null;
+  country: string | null;
+  native_district: string | null;
+  diet: string | null;
+  about: string | null;
+  is_verified: boolean;
+};
+
+type Compat = {
+  score: number;
+  confidence: number;
+  categories: Record<string, number>;
+  summary: string;
+  greenFlags: string[];
+  redFlags: string[];
+  conversationStarters: string[];
+  missingInfo: string[];
+  recommendation: "strong_match" | "worth_exploring" | "proceed_with_care" | "not_recommended";
+};
+
+const CATEGORY_LABELS: Record<string, string> = {
+  community: "Community",
+  lifestyle: "Lifestyle",
+  education_career: "Education & career",
+  family_values: "Family values",
+  location: "Location",
+  expectations: "Partner expectations",
+};
+
+const RECOMMENDATION_META: Record<
+  Compat["recommendation"],
+  { label: string; variant: "default" | "secondary" | "outline" | "destructive" }
+> = {
+  strong_match: { label: "Strong match", variant: "default" },
+  worth_exploring: { label: "Worth exploring", variant: "secondary" },
+  proceed_with_care: { label: "Proceed with care", variant: "outline" },
+  not_recommended: { label: "Not recommended", variant: "destructive" },
 };
 
 function ageFrom(dob: string | null) {
   if (!dob) return null;
-  const d = new Date(dob); const now = new Date();
+  const d = new Date(dob);
+  const now = new Date();
   let a = now.getFullYear() - d.getFullYear();
   const m = now.getMonth() - d.getMonth();
   if (m < 0 || (m === 0 && now.getDate() < d.getDate())) a--;
@@ -39,7 +96,7 @@ function ProfilePage() {
   const [activePhoto, setActivePhoto] = useState(0);
   const [interestSent, setInterestSent] = useState(false);
   const [shortlisted, setShortlisted] = useState(false);
-  const [compat, setCompat] = useState<{ score: number; summary: string; strengths: string[]; considerations: string[] } | null>(null);
+  const [compat, setCompat] = useState<Compat | null>(null);
   const [loadingCompat, setLoadingCompat] = useState(false);
   const compatFn = useServerFn(getCompatibility);
 
@@ -56,7 +113,9 @@ function ProfilePage() {
         .order("created_at", { ascending: true });
       if (phs?.length) {
         const signed = await Promise.all(
-          phs.map((ph) => supabase.storage.from("profile-photos").createSignedUrl(ph.storage_path, 3600)),
+          phs.map((ph) =>
+            supabase.storage.from("profile-photos").createSignedUrl(ph.storage_path, 3600),
+          ),
         );
         setPhotoUrls(signed.map((s) => s.data?.signedUrl).filter((u): u is string => !!u));
       }
@@ -64,8 +123,18 @@ function ProfilePage() {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) return;
       const [{ data: interest }, { data: shortlist }] = await Promise.all([
-        supabase.from("interests").select("id").eq("from_profile", u.user.id).eq("to_profile", id).maybeSingle(),
-        supabase.from("shortlists").select("id").eq("owner_id", u.user.id).eq("profile_id", id).maybeSingle(),
+        supabase
+          .from("interests")
+          .select("id")
+          .eq("from_profile", u.user.id)
+          .eq("to_profile", id)
+          .maybeSingle(),
+        supabase
+          .from("shortlists")
+          .select("id")
+          .eq("owner_id", u.user.id)
+          .eq("profile_id", id)
+          .maybeSingle(),
       ]);
       setInterestSent(!!interest);
       setShortlisted(!!shortlist);
@@ -75,7 +144,9 @@ function ProfilePage() {
   const send = async () => {
     const { data: u } = await supabase.auth.getUser();
     if (!u.user) return;
-    const { error } = await supabase.from("interests").insert({ from_profile: u.user.id, to_profile: id });
+    const { error } = await supabase
+      .from("interests")
+      .insert({ from_profile: u.user.id, to_profile: id });
     if (error) return toast.error(error.message);
     setInterestSent(true);
     toast.success("Interest sent");
@@ -85,12 +156,18 @@ function ProfilePage() {
     const { data: u } = await supabase.auth.getUser();
     if (!u.user) return;
     if (shortlisted) {
-      const { error } = await supabase.from("shortlists").delete().eq("owner_id", u.user.id).eq("profile_id", id);
+      const { error } = await supabase
+        .from("shortlists")
+        .delete()
+        .eq("owner_id", u.user.id)
+        .eq("profile_id", id);
       if (error) return toast.error(error.message);
       setShortlisted(false);
       toast.success("Removed from shortlist");
     } else {
-      const { error } = await supabase.from("shortlists").insert({ owner_id: u.user.id, profile_id: id });
+      const { error } = await supabase
+        .from("shortlists")
+        .insert({ owner_id: u.user.id, profile_id: id });
       if (error) return toast.error(error.message);
       setShortlisted(true);
       toast.success("Added to shortlist");
@@ -121,10 +198,16 @@ function ProfilePage() {
     ["Sub-sect", p.sub_sect ?? null],
     ["Gotra", p.gotra ?? null],
     ["Guru lineage", p.guru_lineage ?? null],
-    ["Ishtalinga practicing", p.ishtalinga_practicing == null ? null : p.ishtalinga_practicing ? "Yes" : "No"],
+    [
+      "Ishtalinga practicing",
+      p.ishtalinga_practicing == null ? null : p.ishtalinga_practicing ? "Yes" : "No",
+    ],
     ["Education", p.education ?? null],
     ["Profession", p.profession ?? null],
-    ["Annual income", p.annual_income_inr ? `₹${p.annual_income_inr.toLocaleString("en-IN")}` : null],
+    [
+      "Annual income",
+      p.annual_income_inr ? `₹${p.annual_income_inr.toLocaleString("en-IN")}` : null,
+    ],
     ["Native district", p.native_district ?? null],
   ];
 
@@ -133,7 +216,11 @@ function ProfilePage() {
       <div className="rounded-2xl overflow-hidden bg-card border border-border">
         <div className="aspect-[16/9] bg-gradient-to-br from-primary/20 via-secondary to-accent/30 flex items-center justify-center font-display text-8xl text-primary/40 relative overflow-hidden">
           {photoUrls[activePhoto] ? (
-            <img src={photoUrls[activePhoto]} alt={p.display_name} className="absolute inset-0 w-full h-full object-cover" />
+            <img
+              src={photoUrls[activePhoto]}
+              alt={p.display_name}
+              className="absolute inset-0 w-full h-full object-cover"
+            />
           ) : (
             p.display_name[0]?.toUpperCase()
           )}
@@ -155,23 +242,41 @@ function ProfilePage() {
         <div className="p-6">
           <div className="flex items-center gap-3">
             <h1 className="font-display text-3xl font-semibold text-primary">{p.display_name}</h1>
-            {p.is_verified ? <Badge className="bg-primary text-primary-foreground"><ShieldCheck className="w-3 h-3 mr-1" />Verified</Badge> : null}
+            {p.is_verified ? (
+              <Badge className="bg-primary text-primary-foreground">
+                <ShieldCheck className="w-3 h-3 mr-1" />
+                Verified
+              </Badge>
+            ) : null}
           </div>
           <div className="mt-3 text-sm text-muted-foreground">
-            {[p.city, p.state, p.country].filter(Boolean).join(", ")} · {p.sub_sect ?? "—"} · {p.profession ?? ""}
+            {[p.city, p.state, p.country].filter(Boolean).join(", ")} · {p.sub_sect ?? "—"} ·{" "}
+            {p.profession ?? ""}
           </div>
           {p.about ? <p className="mt-4 leading-relaxed">{p.about}</p> : null}
           <div className="mt-6 flex flex-wrap gap-3">
             <Button onClick={send} disabled={interestSent}>
-              {interestSent ? <Check className="w-4 h-4 mr-2" /> : <Heart className="w-4 h-4 mr-2" />}
+              {interestSent ? (
+                <Check className="w-4 h-4 mr-2" />
+              ) : (
+                <Heart className="w-4 h-4 mr-2" />
+              )}
               {interestSent ? "Interest sent" : "Send interest"}
             </Button>
             <Button variant="secondary" onClick={toggleShortlist}>
-              {shortlisted ? <BookmarkCheck className="w-4 h-4 mr-2" /> : <Bookmark className="w-4 h-4 mr-2" />}
+              {shortlisted ? (
+                <BookmarkCheck className="w-4 h-4 mr-2" />
+              ) : (
+                <Bookmark className="w-4 h-4 mr-2" />
+              )}
               {shortlisted ? "Shortlisted" : "Shortlist"}
             </Button>
             <Button variant="outline" onClick={runCompat} disabled={loadingCompat}>
-              {loadingCompat ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2 text-accent" />}
+              {loadingCompat ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Sparkles className="w-4 h-4 mr-2 text-accent" />
+              )}
               {compat ? "Refresh AI compatibility" : "See AI compatibility"}
             </Button>
           </div>
@@ -181,38 +286,125 @@ function ProfilePage() {
       <div className="mt-6 rounded-2xl bg-card border border-border p-6">
         <h2 className="text-xs uppercase tracking-widest text-muted-foreground mb-4">Details</h2>
         <dl className="grid sm:grid-cols-2 gap-x-8 gap-y-3 text-sm">
-          {details.filter(([, v]) => v).map(([label, value]) => (
-            <div key={label} className="flex justify-between gap-4 border-b border-border/50 pb-2">
-              <dt className="text-muted-foreground">{label}</dt>
-              <dd className="font-medium text-right">{value}</dd>
-            </div>
-          ))}
+          {details
+            .filter(([, v]) => v)
+            .map(([label, value]) => (
+              <div
+                key={label}
+                className="flex justify-between gap-4 border-b border-border/50 pb-2"
+              >
+                <dt className="text-muted-foreground">{label}</dt>
+                <dd className="font-medium text-right">{value}</dd>
+              </div>
+            ))}
         </dl>
       </div>
 
       {compat && (
         <div className="mt-6 rounded-2xl bg-card border border-border p-6">
-          <div className="flex items-center justify-between gap-4">
+          {/* Overall */}
+          <div className="flex items-start justify-between gap-4">
             <div>
-              <div className="text-xs uppercase tracking-widest text-muted-foreground">AI compatibility</div>
-              <div className="font-display text-4xl text-primary mt-1">{compat.score}<span className="text-xl text-muted-foreground">/100</span></div>
+              <div className="text-xs uppercase tracking-widest text-muted-foreground">
+                AI compatibility
+              </div>
+              <div className="font-display text-4xl text-primary mt-1">
+                {compat.score}
+                <span className="text-xl text-muted-foreground">/100</span>
+              </div>
+              <Badge variant={RECOMMENDATION_META[compat.recommendation].variant} className="mt-2">
+                {RECOMMENDATION_META[compat.recommendation].label}
+              </Badge>
             </div>
-            <div className="text-sm text-muted-foreground max-w-md text-right">{compat.summary}</div>
+            <div className="text-right">
+              <div className="text-xs uppercase tracking-widest text-muted-foreground">
+                Confidence
+              </div>
+              <div className="font-display text-2xl mt-1">{compat.confidence}%</div>
+            </div>
           </div>
-          <div className="mt-5 grid sm:grid-cols-2 gap-5">
-            <div>
-              <div className="text-xs font-semibold uppercase text-primary mb-2">Strengths</div>
+          <p className="mt-4 text-sm leading-relaxed text-foreground/90">{compat.summary}</p>
+
+          {/* Breakdown */}
+          <div className="mt-6">
+            <div className="text-xs font-semibold uppercase text-muted-foreground mb-3">
+              Compatibility breakdown
+            </div>
+            <div className="grid sm:grid-cols-2 gap-x-8 gap-y-3">
+              {Object.entries(compat.categories).map(([key, value]) => (
+                <div key={key}>
+                  <div className="flex justify-between text-sm mb-1">
+                    <span>{CATEGORY_LABELS[key] ?? key}</span>
+                    <span className="text-muted-foreground">{Math.round(value)}%</span>
+                  </div>
+                  <Progress
+                    value={value}
+                    aria-label={`${CATEGORY_LABELS[key] ?? key} ${Math.round(value)}%`}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Flags */}
+          <div className="mt-6 grid sm:grid-cols-2 gap-5">
+            {compat.greenFlags.length > 0 && (
+              <div>
+                <div className="text-xs font-semibold uppercase text-primary mb-2">
+                  Why you're a good match
+                </div>
+                <ul className="space-y-1.5 text-sm">
+                  {compat.greenFlags.map((s, i) => (
+                    <li key={i} className="flex gap-2">
+                      <Check className="w-4 h-4 text-primary shrink-0 mt-0.5" />
+                      <span>{s}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {compat.redFlags.length > 0 && (
+              <div>
+                <div className="text-xs font-semibold uppercase text-accent-foreground mb-2">
+                  Potential challenges
+                </div>
+                <ul className="space-y-1.5 text-sm">
+                  {compat.redFlags.map((s, i) => (
+                    <li key={i} className="flex gap-2">
+                      <AlertCircle className="w-4 h-4 text-accent shrink-0 mt-0.5" />
+                      <span>{s}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+
+          {/* Conversation starters */}
+          {compat.conversationStarters.length > 0 && (
+            <div className="mt-6 rounded-xl bg-secondary/40 border border-border p-4">
+              <div className="text-xs font-semibold uppercase text-muted-foreground mb-2 flex items-center gap-1.5">
+                <MessageCircle className="w-3.5 h-3.5" />
+                Conversation starters
+              </div>
               <ul className="space-y-1.5 text-sm">
-                {compat.strengths.map((s, i) => <li key={i} className="flex gap-2"><Check className="w-4 h-4 text-primary shrink-0 mt-0.5" /><span>{s}</span></li>)}
+                {compat.conversationStarters.map((s, i) => (
+                  <li key={i} className="flex gap-2">
+                    <span className="text-primary">"</span>
+                    <span className="italic">{s}</span>
+                  </li>
+                ))}
               </ul>
             </div>
-            <div>
-              <div className="text-xs font-semibold uppercase text-accent-foreground mb-2">Consider</div>
-              <ul className="space-y-1.5 text-sm">
-                {compat.considerations.map((s, i) => <li key={i} className="flex gap-2"><AlertCircle className="w-4 h-4 text-accent shrink-0 mt-0.5" /><span>{s}</span></li>)}
-              </ul>
+          )}
+
+          {/* Missing information */}
+          {compat.missingInfo.length > 0 && (
+            <div className="mt-4 text-xs text-muted-foreground">
+              <span className="font-semibold uppercase">Improve this estimate: </span>
+              {compat.missingInfo.join(" · ")}
             </div>
-          </div>
+          )}
         </div>
       )}
     </div>
