@@ -459,10 +459,53 @@ export type Database = {
           },
         ];
       };
+      profile_events: {
+        Row: {
+          actor_id: string;
+          created_at: string;
+          event_type: string;
+          id: string;
+          metadata: Json;
+          target_profile_id: string;
+        };
+        Insert: {
+          actor_id: string;
+          created_at?: string;
+          event_type: string;
+          id?: string;
+          metadata?: Json;
+          target_profile_id: string;
+        };
+        Update: {
+          actor_id?: string;
+          created_at?: string;
+          event_type?: string;
+          id?: string;
+          metadata?: Json;
+          target_profile_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "profile_events_actor_id_fkey";
+            columns: ["actor_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "profile_events_target_profile_id_fkey";
+            columns: ["target_profile_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       profiles: {
         Row: {
           about: string | null;
           annual_income_inr: number | null;
+          astro: Json;
           city: string | null;
           country: string | null;
           created_at: string;
@@ -496,6 +539,7 @@ export type Database = {
         Insert: {
           about?: string | null;
           annual_income_inr?: number | null;
+          astro?: Json;
           city?: string | null;
           country?: string | null;
           created_at?: string;
@@ -529,6 +573,7 @@ export type Database = {
         Update: {
           about?: string | null;
           annual_income_inr?: number | null;
+          astro?: Json;
           city?: string | null;
           country?: string | null;
           created_at?: string;

@@ -408,14 +408,14 @@ function BirthDetails({
     try {
       const { data: fresh } = await supabase
         .from("profiles")
-        .select("astro" as never)
+        .select("astro")
         .eq("id", uid)
         .maybeSingle();
-      const merged = mergeAstro((fresh as Record<string, unknown> | null)?.astro, astro);
-      // Cast: astro column is newer than the generated Database types.
+      const merged = mergeAstro(fresh?.astro, astro);
+      // Cast: zod passthrough output is valid JSON but TS can't index it as Json.
       const { error } = await supabase
         .from("profiles")
-        .update({ astro: merged } as never)
+        .update({ astro: merged as unknown as Json })
         .eq("id", uid);
       if (error) return toast.error(error.message);
       toast.success("Birth details saved");

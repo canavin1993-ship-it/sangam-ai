@@ -132,7 +132,7 @@ function ProfilePage() {
       // Jatakam: both moon charts are derivable client-side from readable rows.
       const { data: mine } = await supabase
         .from("profiles")
-        .select("date_of_birth, gender, astro" as never)
+        .select("date_of_birth, gender, astro")
         .eq("id", u.user.id)
         .maybeSingle();
       const my = mine as {

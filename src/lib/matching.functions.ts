@@ -184,18 +184,10 @@ export const getCompatibility = createServerFn({ method: "POST" })
       );
     }
 
-    // Cast: astro column is newer than the generated Database types.
-    // Falls back to the pre-astro column list until the migration is applied.
-    let { data: profiles, error } = await supabase
+    const { data: profiles, error } = await supabase
       .from("profiles")
-      .select(PROFILE_COLS as "id")
+      .select(PROFILE_COLS)
       .in("id", [userId, data.otherProfileId]);
-    if (error?.message.includes("astro")) {
-      ({ data: profiles, error } = await supabase
-        .from("profiles")
-        .select(PROFILE_COLS.replace(", astro", "") as "id")
-        .in("id", [userId, data.otherProfileId]));
-    }
     if (error) throw new Error(error.message);
     const me = profiles?.find((p) => p.id === userId) as ProfileLite | undefined;
     const other = profiles?.find((p) => p.id === data.otherProfileId) as ProfileLite | undefined;
