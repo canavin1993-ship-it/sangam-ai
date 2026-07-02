@@ -35,9 +35,9 @@ export const Route = createFileRoute("/")({
         content:
           "Free, verified, AI-powered matrimony exclusively for the global Jangama community.",
       },
-      { property: "og:url", content: "/" },
+      { property: "og:url", content: "https://jangamamatrimony.com/" },
     ],
-    links: [{ rel: "canonical", href: "/" }],
+    links: [{ rel: "canonical", href: "https://jangamamatrimony.com/" }],
     scripts: [
       {
         type: "application/ld+json",
@@ -45,6 +45,7 @@ export const Route = createFileRoute("/")({
           "@context": "https://schema.org",
           "@type": "Organization",
           name: "Jangama Matrimony",
+          url: "https://jangamamatrimony.com",
           description:
             "Free, verified, AI-powered matrimony platform exclusively for the Jangama Veerashaiva-Lingayat community.",
           sameAs: [
