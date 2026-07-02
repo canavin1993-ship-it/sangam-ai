@@ -9,6 +9,7 @@ import {
 } from "../src/lib/partner-expectations";
 import { computeCompleteness, type CompletenessInput } from "../src/lib/profile-completeness";
 import { computeTrustScore } from "../src/lib/trust-score";
+import { preferenceFit, rankCandidate, rankProfiles, type RankCandidate } from "../src/lib/ranking";
 
 // --- parse tolerance ---
 assert.equal(parsePartnerExpectations(null).schemaVersion, 1);
@@ -160,5 +161,59 @@ const faceTrust = computeTrustScore({
   updatedAt: new Date().toISOString(),
 });
 assert.equal(faceTrust.factors.find((f) => f.key === "faceVerified")?.score, 1);
+
+// --- ranking ---
+const cand = (over: Partial<RankCandidate>): RankCandidate => ({
+  id: "00000000-0000-0000-0000-000000000001",
+  date_of_birth: "1998-01-01",
+  height_cm: 165,
+  mother_tongue: "Kannada",
+  sub_sect: "Panchamasali",
+  marital_status: "never_married",
+  education: "BE Computer Science",
+  profession: "Engineer",
+  city: "Bengaluru",
+  state: "Karnataka",
+  diet: "vegetarian",
+  about: "hello",
+  is_verified: true,
+  updated_at: new Date().toISOString(),
+  ...over,
+});
+
+// no prefs set → preferenceFit unavailable (null), not fabricated
+assert.equal(preferenceFit(PE_DEFAULTS, cand({})), null);
+
+// prefs fully matched → 1; age boundary respected
+const pe = parsePartnerExpectations({
+  age: { min: 24, max: 30 },
+  subSect: ["panchamasali"], // case-insensitive
+  education: ["BE"],
+  diet: ["vegetarian"],
+});
+assert.equal(preferenceFit(pe, cand({})), 1);
+assert.ok((preferenceFit(pe, cand({ date_of_birth: "1990-01-01" })) ?? 1) < 1); // too old fails age check
+
+// composite: cached compat included when present; renormalizes when absent
+const withCompat = rankCandidate(cand({}), pe, 80);
+const withoutCompat = rankCandidate(cand({}), pe, null);
+assert.ok(withCompat.parts.compatibility === 0.8);
+assert.equal(withoutCompat.parts.compatibility, undefined);
+assert.ok(withoutCompat.score === 100); // all available signals full → 100 after renormalization
+
+// unverified + stale ranks below verified + fresh
+const ranked = rankProfiles(
+  [
+    cand({
+      id: "00000000-0000-0000-0000-00000000000a",
+      is_verified: false,
+      updated_at: "2020-01-01",
+    }),
+    cand({ id: "00000000-0000-0000-0000-00000000000b" }),
+  ],
+  pe,
+  {},
+);
+assert.equal(ranked[0].id, "00000000-0000-0000-0000-00000000000b");
 
 console.log("selfcheck OK");
