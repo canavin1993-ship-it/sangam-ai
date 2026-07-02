@@ -88,6 +88,30 @@ DNSSEC configuration, billing, email products) require the GoDaddy dashboard.
 Post-deploy SEO validation: Search Console + Bing Webmaster registration,
 Rich Results Test, OG preview, live robots.txt + sitemap fetch.
 
+## Verify the audit claims yourself (60 seconds)
+
+Paste into the Lovable/Supabase SQL editor. Every row should read `true`:
+
+```sql
+SELECT
+  (SELECT count(*)=3 FROM pg_policies WHERE tablename='matches')            AS cache_policy_applied,
+  (SELECT count(*)=1 FROM information_schema.tables
+    WHERE table_name='profile_events')                                      AS events_table_exists,
+  (SELECT count(*)=1 FROM information_schema.columns
+    WHERE table_name='profiles' AND column_name='astro')                    AS astro_column_exists,
+  (SELECT count(*)>=7 FROM pg_indexes
+    WHERE schemaname='public' AND indexname LIKE 'idx_%')                   AS fk_indexes_applied,
+  (SELECT count(*)=0 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace
+    WHERE n.nspname='public' AND c.relkind='r' AND NOT c.relrowsecurity)    AS rls_on_all_tables,
+  (SELECT count(*)=0 FROM auth.users
+    WHERE email LIKE 'claude.prod.audit%')                                  AS audit_test_users_cleaned;
+```
+
+Non-DB claims, verified from your own machine:
+- Sync behind: compare latest commit in the Lovable editor vs `git log origin/main -1`
+- www broken: open `https://www.jangamamatrimony.com` (expect a TLS error until fixed)
+- Both domains: `whois jangammatrimony.com | grep Creation` (2006, not yours) vs `whois jangamamatrimony.com` (2026-07-01, yours)
+
 ## Go / No-Go
 
 **Go** when ALL of:
