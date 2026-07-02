@@ -10,6 +10,7 @@ writeFileSync(
     {
       git_commit: sh("git rev-parse --short HEAD"),
       version: sh("git describe --tags --always"),
+      branch: sh("git rev-parse --abbrev-ref HEAD"),
       build_time: new Date().toISOString(),
     },
     null,
