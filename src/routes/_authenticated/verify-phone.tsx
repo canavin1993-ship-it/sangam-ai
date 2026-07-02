@@ -23,32 +23,47 @@ function VerifyPhone() {
 
   const sendMut = useMutation({
     mutationFn: () => send({ data: { phone } }),
-    onSuccess: (r: any) => {
+    onSuccess: (r: { devOtp?: string }) => {
       setStage("otp");
-      if (r?.devOtp) { setDevOtp(r.devOtp); toast.info(`Dev OTP: ${r.devOtp}`); }
-      else toast.success("OTP sent");
+      if (r?.devOtp) {
+        setDevOtp(r.devOtp);
+        toast.info(`Dev OTP: ${r.devOtp}`);
+      } else toast.success("OTP sent");
     },
     onError: (e: Error) => toast.error(e.message),
   });
 
   const verifyMut = useMutation({
     mutationFn: () => verify({ data: { otp } }),
-    onSuccess: () => { setStage("done"); toast.success("Phone verified!"); },
+    onSuccess: () => {
+      setStage("done");
+      toast.success("Phone verified!");
+    },
     onError: (e: Error) => toast.error(e.message),
   });
 
   return (
     <main className="mx-auto max-w-md px-6 py-10">
       <h1 className="font-display text-2xl mb-1">Verify your phone</h1>
-      <p className="text-muted-foreground text-sm mb-6">A verified phone earns trust and unlocks messaging faster.</p>
+      <p className="text-muted-foreground text-sm mb-6">
+        A verified phone earns trust and unlocks messaging faster.
+      </p>
 
       {stage === "phone" && (
         <div className="space-y-4">
           <div>
             <Label>Phone (Indian mobile, no +91)</Label>
-            <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="9876543210" />
+            <Input
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="9876543210"
+            />
           </div>
-          <Button className="w-full" onClick={() => sendMut.mutate()} disabled={sendMut.isPending || phone.length < 10}>
+          <Button
+            className="w-full"
+            onClick={() => sendMut.mutate()}
+            disabled={sendMut.isPending || phone.length < 10}
+          >
             {sendMut.isPending ? "Sending…" : "Send OTP"}
           </Button>
         </div>
@@ -58,13 +73,23 @@ function VerifyPhone() {
         <div className="space-y-4">
           <div>
             <Label>Enter the 6-digit code sent to {phone}</Label>
-            <Input value={otp} onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))} inputMode="numeric" />
+            <Input
+              value={otp}
+              onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))}
+              inputMode="numeric"
+            />
             {devOtp && <p className="text-xs text-muted-foreground mt-1">Dev mode OTP: {devOtp}</p>}
           </div>
-          <Button className="w-full" onClick={() => verifyMut.mutate()} disabled={verifyMut.isPending || otp.length !== 6}>
+          <Button
+            className="w-full"
+            onClick={() => verifyMut.mutate()}
+            disabled={verifyMut.isPending || otp.length !== 6}
+          >
             {verifyMut.isPending ? "Verifying…" : "Verify"}
           </Button>
-          <Button variant="ghost" className="w-full" onClick={() => setStage("phone")}>Change number</Button>
+          <Button variant="ghost" className="w-full" onClick={() => setStage("phone")}>
+            Change number
+          </Button>
         </div>
       )}
 

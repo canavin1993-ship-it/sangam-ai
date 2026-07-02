@@ -426,7 +426,12 @@ function BirthDetails({
 
   return (
     <div className="mt-6 rounded-2xl bg-card border border-border p-6">
-      <div className="mb-1 font-display text-lg">Birth details (Jatakam)</div>
+      <div className="mb-1 font-display text-lg">
+        Birth details (Jatakam){" "}
+        <Badge variant="secondary" className="align-middle">
+          Beta
+        </Badge>
+      </div>
       <p className="text-xs text-muted-foreground mb-5">
         Used for horoscope matching (Guna Milan). Exact birth time matters — the moon can change
         nakshatra within a day.

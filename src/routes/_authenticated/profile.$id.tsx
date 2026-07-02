@@ -348,7 +348,10 @@ function ProfilePage() {
           <div className="flex items-start justify-between gap-4">
             <div>
               <div className="text-xs uppercase tracking-widest text-muted-foreground">
-                Jatakam — Guna Milan
+                Jatakam — Guna Milan{" "}
+                <Badge variant="secondary" className="align-middle normal-case tracking-normal">
+                  Beta
+                </Badge>
               </div>
               <div className="font-display text-4xl text-primary mt-1">
                 {gm.totalPoints}
