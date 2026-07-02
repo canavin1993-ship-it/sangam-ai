@@ -197,3 +197,34 @@ export function rankProfiles<T extends RankCandidate>(
         a.id.localeCompare(b.id),
     );
 }
+
+export type RecommendContext = {
+  viewerGender: string | null;
+  pe: PartnerExpectations;
+  compatById: Record<string, number>;
+  /** blocked, already-interested, dismissed, hidden */
+  excludedIds: ReadonlySet<string>;
+  /** recently opened profiles — kept, but shown after unseen ones */
+  seenIds: ReadonlySet<string>;
+  limit: number;
+};
+
+/**
+ * Full recommendation pipeline: exclusions → eligibility → ranking →
+ * seen-last freshness → limit → diversity. Pure, so the selfcheck can run
+ * canonical personas through it end to end.
+ */
+export function recommend<T extends RankCandidate & { gender: string | null }>(
+  pool: T[],
+  ctx: RecommendContext,
+): Array<T & { rank: RankResult }> {
+  const ranked = rankProfiles(
+    pool.filter((c) => !ctx.excludedIds.has(c.id) && eligible(ctx.pe, c, ctx.viewerGender)),
+    ctx.pe,
+    ctx.compatById,
+  );
+  // Freshness: unseen first, order preserved within each group.
+  const unseen = ranked.filter((c) => !ctx.seenIds.has(c.id));
+  const seen = ranked.filter((c) => ctx.seenIds.has(c.id));
+  return diversify([...unseen, ...seen].slice(0, ctx.limit), (c) => c.city?.toLowerCase() ?? "");
+}

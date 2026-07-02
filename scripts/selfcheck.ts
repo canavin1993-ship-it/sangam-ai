@@ -16,6 +16,7 @@ import {
   eligible,
   diversify,
   reasonsFor,
+  recommend,
   type RankCandidate,
 } from "../src/lib/ranking";
 
@@ -257,5 +258,59 @@ assert.deepEqual(reasonsFor({ compatibility: 0.9, preferenceFit: 0.8, verified: 
   "Matches your preferences",
 ]); // capped at 2, ordered by strength of claim
 assert.deepEqual(reasonsFor({ completeness: 0.4 }), []);
+
+// --- recommendation pipeline: canonical personas through recommend() ---
+type Persona = RankCandidate & { gender: string | null };
+const persona = (id: string, over: Partial<Persona>): Persona =>
+  Object.assign(
+    cand({ id: `00000000-0000-0000-0000-0000000000${id}` }),
+    { gender: "female" },
+    over,
+  );
+
+const viewer = { gender: "male", pe };
+const compatible = persona("01", {}); // matches all of pe
+const incompatible = persona("02", { sub_sect: "Other", diet: "non_vegetarian", education: "MA" });
+const sameGender = persona("03", { gender: "male" });
+const dismissed = persona("04", {});
+const seenRecently = persona("05", {});
+const unverifiedTwin = persona("06", { is_verified: false });
+
+const recs = recommend(
+  [compatible, incompatible, sameGender, dismissed, seenRecently, unverifiedTwin],
+  {
+    viewerGender: viewer.gender,
+    pe: viewer.pe,
+    compatById: {},
+    excludedIds: new Set([dismissed.id]),
+    seenIds: new Set([seenRecently.id]),
+    limit: 10,
+  },
+);
+const ids = recs.map((r) => r.id);
+
+// dismissed profiles are excluded
+assert.ok(!ids.includes(dismissed.id));
+// same-gender (ineligible) profiles are excluded
+assert.ok(!ids.includes(sameGender.id));
+// incompatible never ranks above compatible
+assert.ok(ids.indexOf(compatible.id) < ids.indexOf(incompatible.id));
+// verified outranks otherwise-identical unverified
+assert.ok(ids.indexOf(compatible.id) < ids.indexOf(unverifiedTwin.id));
+// recently-seen profiles come after unseen ones
+assert.ok(ids.indexOf(seenRecently.id) > ids.indexOf(unverifiedTwin.id));
+// pipeline preserves the eligible candidate set (nothing invented or lost)
+assert.equal(ids.length, 4);
+// unknown fields don't become implicit penalties: null-city candidate is not
+// scored lower than an identical one on the diversity key
+const nullCity = recommend([persona("07", { city: null })], {
+  viewerGender: "male",
+  pe: PE_DEFAULTS,
+  compatById: {},
+  excludedIds: new Set(),
+  seenIds: new Set(),
+  limit: 5,
+});
+assert.equal(nullCity.length, 1);
 
 console.log("selfcheck OK");

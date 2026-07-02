@@ -6,15 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { parsePartnerExpectations } from "@/lib/partner-expectations";
+import { recommend, reasonsFor, type RankCandidate, type RankResult } from "@/lib/ranking";
 import {
-  rankProfiles,
-  eligible,
-  diversify,
-  reasonsFor,
-  type RankCandidate,
-  type RankResult,
-} from "@/lib/ranking";
-import { fetchCompatScores, RANK_COLS } from "@/lib/ranking.queries";
+  fetchCompatScores,
+  fetchEventSets,
+  logProfileEvent,
+  RANK_COLS,
+} from "@/lib/ranking.queries";
 import { ProfileCard } from "@/components/profile-card";
 
 export const Route = createFileRoute("/_authenticated/discover")({
@@ -32,38 +30,49 @@ function Discover() {
     (async () => {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) return;
-      const [{ data: mine }, { data, error }, compatById, { data: blocks }, { data: sent }] =
-        await Promise.all([
-          supabase
-            .from("profiles")
-            .select("id, gender, onboarding_complete, partner_expectations")
-            .eq("id", u.user.id)
-            .maybeSingle(),
-          supabase
-            .from("profiles")
-            .select(RANK_COLS)
-            .eq("status", "active")
-            .neq("id", u.user.id)
-            .limit(60),
-          fetchCompatScores(u.user.id),
-          // Retrieval exclusions: my blocks (their side of a block hides via RLS
-          // only when profiles policy does it — my side is what I can see here).
-          supabase.from("blocks").select("blocked_id").eq("blocker_id", u.user.id),
-          // Already in my funnel — interests have their own page.
-          supabase.from("interests").select("to_profile").eq("from_profile", u.user.id),
-        ]);
+      const [
+        { data: mine },
+        { data, error },
+        compatById,
+        { data: blocks },
+        { data: sent },
+        eventSets,
+      ] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("id, gender, onboarding_complete, partner_expectations")
+          .eq("id", u.user.id)
+          .maybeSingle(),
+        supabase
+          .from("profiles")
+          .select(RANK_COLS)
+          .eq("status", "active")
+          .neq("id", u.user.id)
+          .limit(60),
+        fetchCompatScores(u.user.id),
+        // Retrieval exclusions: my blocks (their side of a block hides via RLS
+        // only when profiles policy does it — my side is what I can see here).
+        supabase.from("blocks").select("blocked_id").eq("blocker_id", u.user.id),
+        // Already in my funnel — interests have their own page.
+        supabase.from("interests").select("to_profile").eq("from_profile", u.user.id),
+        fetchEventSets(u.user.id),
+      ]);
       setMe({ id: u.user.id, onboarding_complete: mine?.onboarding_complete ?? false });
       if (error) toast.error(error.message);
-      const pe = parsePartnerExpectations(mine?.partner_expectations);
-      const excluded = new Set([
-        ...(blocks ?? []).map((b) => b.blocked_id),
-        ...(sent ?? []).map((i) => i.to_profile),
-      ]);
-      const pool = ((data ?? []) as Profile[]).filter(
-        (c) => !excluded.has(c.id) && eligible(pe, c, mine?.gender ?? null),
+      setProfiles(
+        recommend((data ?? []) as Profile[], {
+          viewerGender: mine?.gender ?? null,
+          pe: parsePartnerExpectations(mine?.partner_expectations),
+          compatById,
+          excludedIds: new Set([
+            ...(blocks ?? []).map((b) => b.blocked_id),
+            ...(sent ?? []).map((i) => i.to_profile),
+            ...eventSets.suppressed,
+          ]),
+          seenIds: eventSets.seen,
+          limit: 24,
+        }),
       );
-      const ranked = rankProfiles(pool, pe, compatById).slice(0, 24);
-      setProfiles(diversify(ranked, (c) => c.city?.toLowerCase() ?? ""));
     })();
   }, []);
 
@@ -74,6 +83,12 @@ function Discover() {
       .insert({ from_profile: me.id, to_profile: to });
     if (error) return toast.error(error.message);
     toast.success("Interest sent");
+  };
+
+  const dismiss = async (id: string) => {
+    if (!me) return;
+    setProfiles((prev) => prev?.filter((p) => p.id !== id) ?? prev);
+    await logProfileEvent(me.id, id, "dismissed");
   };
 
   return (
@@ -128,6 +143,7 @@ function Discover() {
               matchScore={p.rank.score}
               reasons={reasonsFor(p.rank.parts)}
               onInterest={sendInterest}
+              onDismiss={dismiss}
             />
           ))}
         </div>

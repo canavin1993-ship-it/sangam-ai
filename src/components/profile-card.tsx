@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ShieldCheck, MapPin, GraduationCap, Sparkles, Heart } from "lucide-react";
+import { ShieldCheck, MapPin, GraduationCap, Sparkles, Heart, X } from "lucide-react";
 
 export type CardProfile = {
   id: string;
@@ -29,11 +29,13 @@ export function ProfileCard({
   matchScore,
   reasons,
   onInterest,
+  onDismiss,
 }: {
   p: CardProfile;
   matchScore?: number;
   reasons?: string[];
   onInterest: (id: string) => void;
+  onDismiss?: (id: string) => void;
 }) {
   const age = ageFrom(p.date_of_birth);
   return (
@@ -91,6 +93,16 @@ export function ProfileCard({
             <Heart className="w-3.5 h-3.5 mr-1.5" />
             Interest
           </Button>
+          {onDismiss && (
+            <Button
+              size="sm"
+              variant="ghost"
+              aria-label={`Dismiss ${p.display_name}`}
+              onClick={() => onDismiss(p.id)}
+            >
+              <X className="w-4 h-4" />
+            </Button>
+          )}
         </div>
       </div>
     </div>

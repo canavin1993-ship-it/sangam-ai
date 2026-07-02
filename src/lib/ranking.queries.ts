@@ -14,3 +14,55 @@ export async function fetchCompatScores(uid: string): Promise<Record<string, num
   for (const m of data ?? []) byId[m.profile_a === uid ? m.profile_b : m.profile_a] = m.ai_score;
   return byId;
 }
+
+// profile_events is newer than the generated Database types — regenerate types
+// after applying migration 20260702150000, then delete this cast.
+const events = () => supabase.from("profile_events" as never);
+
+type EventRow = { target_profile_id: string; event_type: string; created_at: string };
+
+/**
+ * Suppressed (dismissed/hidden) and recently-seen profile ids for a viewer.
+ * Degrades to empty sets while the migration is unapplied.
+ */
+export async function fetchEventSets(
+  uid: string,
+): Promise<{ suppressed: Set<string>; seen: Set<string> }> {
+  const since = new Date(Date.now() - 7 * 86_400_000).toISOString();
+  const { data, error } = await events()
+    .select("target_profile_id, event_type, created_at")
+    .eq("actor_id", uid)
+    .or(
+      `event_type.in.(dismissed,hidden),and(event_type.eq.profile_opened,created_at.gte.${since})`,
+    );
+  if (error) {
+    console.warn("profile_events unavailable (migration applied?):", error.message);
+    return { suppressed: new Set(), seen: new Set() };
+  }
+  const rows = (data ?? []) as unknown as EventRow[];
+  return {
+    suppressed: new Set(
+      rows.filter((r) => r.event_type !== "profile_opened").map((r) => r.target_profile_id),
+    ),
+    seen: new Set(
+      rows.filter((r) => r.event_type === "profile_opened").map((r) => r.target_profile_id),
+    ),
+  };
+}
+
+/** Fire-and-forget event log; harmless while the migration is unapplied. */
+export async function logProfileEvent(
+  uid: string,
+  targetProfileId: string,
+  eventType: "viewed" | "profile_opened" | "dismissed" | "hidden",
+): Promise<void> {
+  const { error } = await events().insert({
+    actor_id: uid,
+    target_profile_id: targetProfileId,
+    event_type: eventType,
+  } as never);
+  // Duplicate suppression events hit the partial unique index — that's fine.
+  if (error && !error.message.includes("duplicate")) {
+    console.warn("profile_events insert failed:", error.message);
+  }
+}

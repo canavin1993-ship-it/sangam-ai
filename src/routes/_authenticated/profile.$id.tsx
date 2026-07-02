@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useServerFn } from "@tanstack/react-start";
 import { getCompatibility } from "@/lib/matching.functions";
+import { logProfileEvent } from "@/lib/ranking.queries";
+import { useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -15,6 +17,7 @@ import {
   Bookmark,
   BookmarkCheck,
   MessageCircle,
+  EyeOff,
 } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
@@ -122,6 +125,7 @@ function ProfilePage() {
 
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) return;
+      if (u.user.id !== id) logProfileEvent(u.user.id, id, "profile_opened"); // fire-and-forget
       const [{ data: interest }, { data: shortlist }] = await Promise.all([
         supabase
           .from("interests")
@@ -172,6 +176,15 @@ function ProfilePage() {
       setShortlisted(true);
       toast.success("Added to shortlist");
     }
+  };
+
+  const navigate = useNavigate();
+  const hide = async () => {
+    const { data: u } = await supabase.auth.getUser();
+    if (!u.user) return;
+    await logProfileEvent(u.user.id, id, "hidden");
+    toast.success("Profile hidden from your recommendations");
+    navigate({ to: "/discover" });
   };
 
   const runCompat = async () => {
@@ -278,6 +291,10 @@ function ProfilePage() {
                 <Sparkles className="w-4 h-4 mr-2 text-accent" />
               )}
               {compat ? "Refresh AI compatibility" : "See AI compatibility"}
+            </Button>
+            <Button variant="ghost" onClick={hide} className="text-muted-foreground">
+              <EyeOff className="w-4 h-4 mr-2" />
+              Hide
             </Button>
           </div>
         </div>
