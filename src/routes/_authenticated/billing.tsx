@@ -25,8 +25,8 @@ function Membership() {
         </div>
         <h1 className="font-display text-4xl mt-4">Every feature is free for you.</h1>
         <p className="text-muted-foreground mt-3">
-          Jangama Matrimony is built exclusively for the Jangama Veerashaiva-Lingayat community, and every
-          feature is unlocked for every member.
+          Jangama Matrimony is built exclusively for the Jangama Veerashaiva-Lingayat community, and
+          every feature is unlocked for every member.
         </p>
       </div>
       <div className="mt-10 rounded-2xl border border-primary/30 bg-card p-8 shadow-sm">
@@ -39,8 +39,12 @@ function Membership() {
           ))}
         </ul>
         <div className="mt-8 flex flex-wrap gap-3">
-          <Button asChild><Link to="/discover">Start discovering matches</Link></Button>
-          <Button asChild variant="outline"><Link to="/me">Complete my profile</Link></Button>
+          <Button asChild>
+            <Link to="/discover">Start discovering matches</Link>
+          </Button>
+          <Button asChild variant="outline">
+            <Link to="/me">Complete my profile</Link>
+          </Button>
         </div>
       </div>
       <p className="text-xs text-muted-foreground mt-6 text-center">

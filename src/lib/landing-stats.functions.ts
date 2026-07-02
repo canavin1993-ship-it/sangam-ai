@@ -33,9 +33,7 @@ export const getLandingStats = createServerFn({ method: "GET" }).handler(
     ]);
 
     const countries = new Set(
-      (countryRows.data ?? [])
-        .map((r) => (r.country ?? "").trim().toLowerCase())
-        .filter(Boolean),
+      (countryRows.data ?? []).map((r) => (r.country ?? "").trim().toLowerCase()).filter(Boolean),
     ).size;
 
     return {

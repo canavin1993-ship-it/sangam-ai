@@ -57,10 +57,16 @@ export const verifyPhoneOtp = createServerFn({ method: "POST" })
 
     const match = hashOtp(data.otp, context.userId) === row.otp_hash;
     if (!match) {
-      await supabaseAdmin.from("phone_verifications").update({ attempts: row.attempts + 1 }).eq("id", row.id);
+      await supabaseAdmin
+        .from("phone_verifications")
+        .update({ attempts: row.attempts + 1 })
+        .eq("id", row.id);
       throw new Error("Incorrect OTP");
     }
     await supabaseAdmin.from("phone_verifications").update({ verified: true }).eq("id", row.id);
-    await supabaseAdmin.from("profiles").update({ phone: row.phone, phone_verified: true }).eq("id", context.userId);
+    await supabaseAdmin
+      .from("profiles")
+      .update({ phone: row.phone, phone_verified: true })
+      .eq("id", context.userId);
     return { ok: true };
   });

@@ -28,7 +28,9 @@ function AuthedLayout() {
       <header className="sticky top-0 z-40 backdrop-blur-lg bg-background/80 border-b border-border/60">
         <div className="mx-auto max-w-6xl px-6 h-16 flex items-center justify-between">
           <Link to="/discover" className="flex items-center gap-2">
-            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground font-display text-lg">ಜ</span>
+            <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-primary text-primary-foreground font-display text-lg">
+              ಜ
+            </span>
             <span className="font-display text-lg font-semibold">Jangama</span>
           </Link>
           <nav className="hidden md:flex items-center gap-6 text-sm">
@@ -39,7 +41,10 @@ function AuthedLayout() {
             <NavItem to="/family" icon={Users} label="Family" />
             <NavItem to="/me" icon={User} label="Profile" />
           </nav>
-          <Button variant="ghost" size="sm" onClick={signOut}><LogOut className="w-4 h-4 mr-2" />Sign out</Button>
+          <Button variant="ghost" size="sm" onClick={signOut}>
+            <LogOut className="w-4 h-4 mr-2" />
+            Sign out
+          </Button>
         </div>
       </header>
       <Outlet />
@@ -54,17 +59,42 @@ function AuthedLayout() {
   );
 }
 
-function NavItem({ to, icon: Icon, label }: { to: string; icon: React.ComponentType<{ className?: string }>; label: string }) {
+function NavItem({
+  to,
+  icon: Icon,
+  label,
+}: {
+  to: string;
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+}) {
   return (
-    <Link to={to} className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition" activeProps={{ className: "text-primary font-medium" }}>
+    <Link
+      to={to}
+      className="flex items-center gap-1.5 text-muted-foreground hover:text-foreground transition"
+      activeProps={{ className: "text-primary font-medium" }}
+    >
       <Icon className="w-4 h-4" /> {label}
     </Link>
   );
 }
-function MobileTab({ to, icon: Icon, label }: { to: string; icon: React.ComponentType<{ className?: string }>; label: string }) {
+function MobileTab({
+  to,
+  icon: Icon,
+  label,
+}: {
+  to: string;
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+}) {
   return (
-    <Link to={to} className="flex flex-col items-center gap-1 text-[11px] text-muted-foreground" activeProps={{ className: "text-primary" }}>
-      <Icon className="w-5 h-5" />{label}
+    <Link
+      to={to}
+      className="flex flex-col items-center gap-1 text-[11px] text-muted-foreground"
+      activeProps={{ className: "text-primary" }}
+    >
+      <Icon className="w-5 h-5" />
+      {label}
     </Link>
   );
 }

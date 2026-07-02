@@ -8,7 +8,11 @@ function assertKeys() {
   if (!KEY_ID || !KEY_SECRET) throw new Error("Razorpay keys not configured");
 }
 
-export async function createRazorpayOrder(amountInr: number, receipt: string, notes: Record<string, string> = {}) {
+export async function createRazorpayOrder(
+  amountInr: number,
+  receipt: string,
+  notes: Record<string, string> = {},
+) {
   assertKeys();
   const res = await fetch("https://api.razorpay.com/v1/orders", {
     method: "POST",

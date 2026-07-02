@@ -17,7 +17,10 @@ export const createOrder = createServerFn({ method: "POST" })
     const plan = PLANS[data.plan];
     const { createRazorpayOrder, RAZORPAY_PUBLIC_KEY } = await import("@/lib/razorpay.server");
     const receipt = `sub_${context.userId.slice(0, 8)}_${Date.now()}`;
-    const order = await createRazorpayOrder(plan.amount, receipt, { userId: context.userId, plan: data.plan });
+    const order = await createRazorpayOrder(plan.amount, receipt, {
+      userId: context.userId,
+      plan: data.plan,
+    });
 
     const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
     await supabaseAdmin.from("subscriptions").insert({
