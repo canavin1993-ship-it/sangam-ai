@@ -79,6 +79,10 @@ DNSSEC configuration, billing, email products) require the GoDaddy dashboard.
 | 🔴 GitHub→Lovable sync | **release blocker** | Lovable editor stuck at Jul 1; commits waiting on `main`. Pull in Lovable UI, then Publish. Do NOT publish before sync. |
 | 🟠 No MX records | operator fix | `support@` cannot receive mail. Configure forwarding/mail hosting; address removed from README until it works. |
 | 🟡 SPF/DKIM absent | later | Add when the domain starts sending mail. DMARC (GoDaddy default, p=quarantine) present. |
+| 🟠 Signup email on default mailer | operator fix | Email confirmation is REQUIRED at signup (verified via REST: no session until confirm), and Supabase's built-in mailer is heavily rate-limited. Configure custom SMTP (e.g. Resend/Postmark) in Supabase auth settings, then verify confirmation, password reset, and resend. |
+| ✅ Live app REST E2E | verified 2026-07-02 | Against production with the real publishable key: signup, login, profile upsert, partner-expectations + astro writes, event insert all pass; cross-user forge updates 0 rows; test users deleted, prod state restored. |
+| ✅ FK indexes | applied + `20260702210000` | 7 covering indexes on hot FK columns, applied to prod during audit. |
+| Vercel migration | ❌ not recommended | Hosting verified healthy; only deficiency is the GitHub sync (UI fix). Revisit only if Lovable support confirms sync is unfixable. |
 | SEO absolute URLs | ✅ fixed in 5e6477b | canonical, og:url, sitemap locs, Organization url |
 
 Post-deploy SEO validation: Search Console + Bing Webmaster registration,
