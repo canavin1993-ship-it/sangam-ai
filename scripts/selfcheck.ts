@@ -9,7 +9,15 @@ import {
 } from "../src/lib/partner-expectations";
 import { computeCompleteness, type CompletenessInput } from "../src/lib/profile-completeness";
 import { computeTrustScore } from "../src/lib/trust-score";
-import { preferenceFit, rankCandidate, rankProfiles, type RankCandidate } from "../src/lib/ranking";
+import {
+  preferenceFit,
+  rankCandidate,
+  rankProfiles,
+  eligible,
+  diversify,
+  reasonsFor,
+  type RankCandidate,
+} from "../src/lib/ranking";
 
 // --- parse tolerance ---
 assert.equal(parsePartnerExpectations(null).schemaVersion, 1);
@@ -215,5 +223,39 @@ const ranked = rankProfiles(
   {},
 );
 assert.equal(ranked[0].id, "00000000-0000-0000-0000-00000000000b");
+
+// --- eligibility ---
+const withGender = (over: Partial<RankCandidate> & { gender?: string | null }) =>
+  Object.assign(cand(over), { gender: over.gender ?? "female" });
+assert.equal(eligible(PE_DEFAULTS, withGender({}), "male"), true); // opposite gender ok
+assert.equal(eligible(PE_DEFAULTS, withGender({ gender: "male" }), "male"), false); // same gender out
+assert.equal(eligible(PE_DEFAULTS, withGender({ gender: null }), "male"), true); // unknown gender kept
+const msPe = parsePartnerExpectations({ maritalStatus: ["never_married"] });
+assert.equal(eligible(msPe, withGender({ marital_status: "divorced" }), "male"), false); // hard conflict
+assert.equal(eligible(msPe, withGender({ marital_status: null }), "male"), true); // unknown not a conflict
+
+// --- diversify: breaks up same-key runs, keeps set identical ---
+const run = [
+  { k: "a", n: 1 },
+  { k: "a", n: 2 },
+  { k: "b", n: 3 },
+];
+const div = diversify(run, (x) => x.k);
+assert.deepEqual(
+  div.map((x) => x.k),
+  ["a", "b", "a"],
+);
+assert.equal(div.length, run.length);
+
+// --- reasons ---
+assert.deepEqual(reasonsFor({ verified: 1, activity: 1, completeness: 0.5 }), [
+  "Verified profile",
+  "Recently active",
+]);
+assert.deepEqual(reasonsFor({ compatibility: 0.9, preferenceFit: 0.8, verified: 1 }), [
+  "High AI compatibility",
+  "Matches your preferences",
+]); // capped at 2, ordered by strength of claim
+assert.deepEqual(reasonsFor({ completeness: 0.4 }), []);
 
 console.log("selfcheck OK");

@@ -132,6 +132,56 @@ export function rankCandidate(
   return { score: total === 0 ? 0 : Math.round((weighted / total) * 100), parts };
 }
 
+/**
+ * Eligibility: structured hard conflicts only. Free-text preferences
+ * (mustHave/dealBreakers) stay with the AI explanation, not hard exclusion.
+ */
+export function eligible(
+  pe: PartnerExpectations,
+  c: RankCandidate & { gender: string | null },
+  viewerGender: string | null,
+): boolean {
+  // Matrimony convention: opposite-gender matches when both genders are known.
+  if (viewerGender && c.gender && c.gender === viewerGender) return false;
+  // Marital status is a structured requirement when set; unknown is not a conflict.
+  if (
+    pe.maritalStatus.length &&
+    c.marital_status &&
+    !ciIncludes(pe.maritalStatus, c.marital_status)
+  )
+    return false;
+  return true;
+}
+
+/**
+ * Break up runs of near-identical candidates (same key) by pulling the next
+ * differing candidate forward. Preserves overall order otherwise.
+ */
+// ponytail: O(n²) window swap, fine for n≤100 page sizes; revisit if lists grow.
+export function diversify<T>(items: T[], keyOf: (t: T) => string): T[] {
+  const out = [...items];
+  for (let i = 1; i < out.length - 1; i++) {
+    if (keyOf(out[i]) && keyOf(out[i]) === keyOf(out[i - 1])) {
+      const j = out.findIndex((x, k) => k > i && keyOf(x) !== keyOf(out[i - 1]));
+      if (j > i) {
+        const [moved] = out.splice(j, 1);
+        out.splice(i, 0, moved);
+      }
+    }
+  }
+  return out;
+}
+
+/** Top reasons a candidate ranked well — for "Recommended because…" UI. */
+export function reasonsFor(parts: RankResult["parts"]): string[] {
+  const reasons: string[] = [];
+  if ((parts.compatibility ?? 0) >= 0.7) reasons.push("High AI compatibility");
+  if ((parts.preferenceFit ?? 0) >= 0.75) reasons.push("Matches your preferences");
+  if (parts.verified === 1) reasons.push("Verified profile");
+  if (parts.activity === 1) reasons.push("Recently active");
+  return reasons.slice(0, 2);
+}
+
 /** Sort candidates best-first; ties broken by activity, then id for stability. */
 export function rankProfiles<T extends RankCandidate>(
   candidates: T[],

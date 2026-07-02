@@ -6,7 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { parsePartnerExpectations } from "@/lib/partner-expectations";
-import { rankProfiles, type RankCandidate } from "@/lib/ranking";
+import {
+  rankProfiles,
+  eligible,
+  diversify,
+  reasonsFor,
+  type RankCandidate,
+  type RankResult,
+} from "@/lib/ranking";
 import { fetchCompatScores, RANK_COLS } from "@/lib/ranking.queries";
 import { ProfileCard } from "@/components/profile-card";
 
@@ -18,33 +25,45 @@ export const Route = createFileRoute("/_authenticated/discover")({
 type Profile = RankCandidate & { display_name: string; gender: string | null };
 
 function Discover() {
-  const [profiles, setProfiles] = useState<Array<Profile & { rank: { score: number } }> | null>(
-    null,
-  );
+  const [profiles, setProfiles] = useState<Array<Profile & { rank: RankResult }> | null>(null);
   const [me, setMe] = useState<{ id: string; onboarding_complete: boolean } | null>(null);
 
   useEffect(() => {
     (async () => {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) return;
-      const [{ data: mine }, { data, error }, compatById] = await Promise.all([
-        supabase
-          .from("profiles")
-          .select("id, onboarding_complete, partner_expectations")
-          .eq("id", u.user.id)
-          .maybeSingle(),
-        supabase
-          .from("profiles")
-          .select(RANK_COLS)
-          .eq("status", "active")
-          .neq("id", u.user.id)
-          .limit(60),
-        fetchCompatScores(u.user.id),
-      ]);
+      const [{ data: mine }, { data, error }, compatById, { data: blocks }, { data: sent }] =
+        await Promise.all([
+          supabase
+            .from("profiles")
+            .select("id, gender, onboarding_complete, partner_expectations")
+            .eq("id", u.user.id)
+            .maybeSingle(),
+          supabase
+            .from("profiles")
+            .select(RANK_COLS)
+            .eq("status", "active")
+            .neq("id", u.user.id)
+            .limit(60),
+          fetchCompatScores(u.user.id),
+          // Retrieval exclusions: my blocks (their side of a block hides via RLS
+          // only when profiles policy does it — my side is what I can see here).
+          supabase.from("blocks").select("blocked_id").eq("blocker_id", u.user.id),
+          // Already in my funnel — interests have their own page.
+          supabase.from("interests").select("to_profile").eq("from_profile", u.user.id),
+        ]);
       setMe({ id: u.user.id, onboarding_complete: mine?.onboarding_complete ?? false });
       if (error) toast.error(error.message);
       const pe = parsePartnerExpectations(mine?.partner_expectations);
-      setProfiles(rankProfiles((data ?? []) as Profile[], pe, compatById).slice(0, 24));
+      const excluded = new Set([
+        ...(blocks ?? []).map((b) => b.blocked_id),
+        ...(sent ?? []).map((i) => i.to_profile),
+      ]);
+      const pool = ((data ?? []) as Profile[]).filter(
+        (c) => !excluded.has(c.id) && eligible(pe, c, mine?.gender ?? null),
+      );
+      const ranked = rankProfiles(pool, pe, compatById).slice(0, 24);
+      setProfiles(diversify(ranked, (c) => c.city?.toLowerCase() ?? ""));
     })();
   }, []);
 
@@ -103,7 +122,13 @@ function Discover() {
       ) : (
         <div className="grid md:grid-cols-3 gap-5">
           {profiles.map((p) => (
-            <ProfileCard key={p.id} p={p} matchScore={p.rank.score} onInterest={sendInterest} />
+            <ProfileCard
+              key={p.id}
+              p={p}
+              matchScore={p.rank.score}
+              reasons={reasonsFor(p.rank.parts)}
+              onInterest={sendInterest}
+            />
           ))}
         </div>
       )}

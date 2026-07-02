@@ -27,10 +27,12 @@ function ageFrom(dob: string | null) {
 export function ProfileCard({
   p,
   matchScore,
+  reasons,
   onInterest,
 }: {
   p: CardProfile;
   matchScore?: number;
+  reasons?: string[];
   onInterest: (id: string) => void;
 }) {
   const age = ageFrom(p.date_of_birth);
@@ -73,6 +75,12 @@ export function ProfileCard({
             </div>
           )}
         </div>
+        {reasons && reasons.length > 0 && (
+          <div className="mt-2 text-xs text-primary/80 flex items-center gap-1">
+            <Sparkles className="w-3 h-3 shrink-0" />
+            {reasons.join(" · ")}
+          </div>
+        )}
         <div className="mt-4 flex gap-2">
           <Button size="sm" variant="outline" className="flex-1" asChild>
             <Link to="/profile/$id" params={{ id: p.id }}>
