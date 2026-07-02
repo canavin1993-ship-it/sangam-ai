@@ -213,8 +213,8 @@ MIT License - see LICENSE file.
 
 ## 👥 Contact
 
-- **Email:** support@jangamamatrimony.com
 - **GitHub Issues:** Report bugs here
+<!-- support@ email intentionally unpublished until MX/mail forwarding is configured — see RELEASE.md -->
 
 ---
 

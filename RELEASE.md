@@ -63,6 +63,27 @@ Deploy the RC (`npm run build`, then Vercel project `sangam-ai` or
 observability (cache hit rate, recommendation latency, verification funnel,
 birth-data completion) — metrics before more features.
 
+## Production audit findings (2026-07-02)
+
+Verified against live infrastructure. Verification boundary: **no GoDaddy
+account integration exists in this environment** — public DNS, WHOIS, SSL and
+HTTP behavior were verified independently; account-only settings (auto-renew,
+DNSSEC configuration, billing, email products) require the GoDaddy dashboard.
+
+| Item | Status | Evidence / action |
+| --- | --- | --- |
+| DB migrations live | ✅ verified behaviorally | RLS writes exercised as authenticated/anon roles in rolled-back txns; non-participant forge rejected; anon sees 0 rows everywhere |
+| Prod domain | ✅ `jangamamatrimony.com` | Registered 2026-07-01 (GoDaddy), A → Lovable `185.158.133.1`, valid GTS cert, HSTS |
+| ⚠️ Brand collision | documented | `jangam`**`m`**`atrimony.com` (one keystroke away) is an 18-year-old CommunityMatrimony/Matrimony.com property in the same market. Recommend IP/trademark professional review before marketing spend. |
+| 🔴 www broken | operator fix | DNS resolves but www is not a Lovable domain alias → no cert, TLS handshake fails. Fix: Lovable domain settings → add `www.jangamamatrimony.com`; then verify cert issuance and a permanent (301/308) redirect to apex. |
+| 🔴 GitHub→Lovable sync | **release blocker** | Lovable editor stuck at Jul 1; commits waiting on `main`. Pull in Lovable UI, then Publish. Do NOT publish before sync. |
+| 🟠 No MX records | operator fix | `support@` cannot receive mail. Configure forwarding/mail hosting; address removed from README until it works. |
+| 🟡 SPF/DKIM absent | later | Add when the domain starts sending mail. DMARC (GoDaddy default, p=quarantine) present. |
+| SEO absolute URLs | ✅ fixed in 5e6477b | canonical, og:url, sitemap locs, Organization url |
+
+Post-deploy SEO validation: Search Console + Bing Webmaster registration,
+Rich Results Test, OG preview, live robots.txt + sitemap fetch.
+
 ## Go / No-Go
 
 **Go** when ALL of:
