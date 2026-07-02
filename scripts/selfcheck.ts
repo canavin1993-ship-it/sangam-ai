@@ -8,6 +8,7 @@ import {
   PE_DEFAULTS,
 } from "../src/lib/partner-expectations";
 import { computeCompleteness, type CompletenessInput } from "../src/lib/profile-completeness";
+import { computeTrustScore } from "../src/lib/trust-score";
 
 // --- parse tolerance ---
 assert.equal(parsePartnerExpectations(null).schemaVersion, 1);
@@ -116,5 +117,48 @@ const narrow = computeCompleteness({
   },
 });
 assert.ok(narrow.suggestions.some((s) => s.action.includes("age range")));
+
+// --- trust score ---
+const zeroTrust = computeTrustScore({
+  completeness: empty,
+  verifications: [],
+  photoModerations: [],
+  updatedAt: new Date(Date.now() - 200 * 86_400_000).toISOString(), // stale
+});
+assert.equal(zeroTrust.score, 0);
+assert.equal(zeroTrust.suggestions[0].key, "idVerified"); // biggest weight first
+
+const fullTrust = computeTrustScore({
+  completeness: full,
+  verifications: [
+    { type: "id", status: "approved" },
+    { type: "selfie", status: "approved" },
+    { type: "mobile", status: "approved" },
+    { type: "email", status: "approved" },
+  ],
+  photoModerations: ["approved", "approved"],
+  updatedAt: new Date().toISOString(),
+});
+assert.equal(fullTrust.score, 100, `expected 100, got ${fullTrust.score}`);
+assert.equal(fullTrust.suggestions.length, 0);
+
+// pending verification earns nothing
+const pendingTrust = computeTrustScore({
+  completeness: full,
+  verifications: [{ type: "id", status: "pending" }],
+  photoModerations: ["pending"],
+  updatedAt: new Date().toISOString(),
+});
+assert.ok(pendingTrust.factors.find((f) => f.key === "idVerified")?.score === 0);
+assert.ok(pendingTrust.factors.find((f) => f.key === "photosApproved")?.score === 0);
+
+// face_match counts as face verification
+const faceTrust = computeTrustScore({
+  completeness: full,
+  verifications: [{ type: "face_match", status: "approved" }],
+  photoModerations: [],
+  updatedAt: new Date().toISOString(),
+});
+assert.equal(faceTrust.factors.find((f) => f.key === "faceVerified")?.score, 1);
 
 console.log("selfcheck OK");

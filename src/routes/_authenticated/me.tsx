@@ -35,6 +35,7 @@ import {
   type PartnerExpectations,
 } from "@/lib/partner-expectations";
 import { computeCompleteness, type CompletenessInput } from "@/lib/profile-completeness";
+import { computeTrustScore } from "@/lib/trust-score";
 import type { Json } from "@/integrations/supabase/types";
 
 export const Route = createFileRoute("/_authenticated/me")({
@@ -45,17 +46,24 @@ export const Route = createFileRoute("/_authenticated/me")({
 function MePage() {
   const [p, setP] = useState<Record<string, unknown> | null>(null);
   const [photos, setPhotos] = useState<
-    Array<{ id: string; storage_path: string; is_primary: boolean; url: string }>
+    Array<{
+      id: string;
+      storage_path: string;
+      is_primary: boolean;
+      moderation: string;
+      url: string;
+    }>
   >([]);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const [uid, setUid] = useState<string | null>(null);
   const [familyStatuses, setFamilyStatuses] = useState<string[]>([]);
+  const [verifications, setVerifications] = useState<Array<{ type: string; status: string }>>([]);
 
   const loadPhotos = async (userId: string) => {
     const { data } = await supabase
       .from("photos")
-      .select("id, storage_path, is_primary")
+      .select("id, storage_path, is_primary, moderation")
       .eq("profile_id", userId)
       .order("is_primary", { ascending: false });
     const withUrls = await Promise.all(
@@ -74,12 +82,14 @@ function MePage() {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) return;
       setUid(u.user.id);
-      const [{ data }, { data: fam }] = await Promise.all([
+      const [{ data }, { data: fam }, { data: verifs }] = await Promise.all([
         supabase.from("profiles").select("*").eq("id", u.user.id).maybeSingle(),
         supabase.from("family_members").select("status").eq("profile_id", u.user.id),
+        supabase.from("verifications").select("type, status").eq("profile_id", u.user.id),
       ]);
       setP(data as Record<string, unknown> | null);
       setFamilyStatuses((fam ?? []).map((f) => f.status));
+      setVerifications(verifs ?? []);
       await loadPhotos(u.user.id);
     })();
   }, []);
@@ -124,10 +134,17 @@ function MePage() {
 
   if (!p) return <div className="p-8 text-muted-foreground">Loading…</div>;
   const get = (k: string) => (p[k] as string | number | null) ?? "—";
-  const completeness = computeCompleteness({
+  const completenessInput = {
     profile: p as unknown as CompletenessInput["profile"],
     photoCount: photos.length,
     familyStatuses,
+  };
+  const completeness = computeCompleteness(completenessInput);
+  const trust = computeTrustScore({
+    completeness: completenessInput,
+    verifications,
+    photoModerations: photos.map((ph) => ph.moderation),
+    updatedAt: String(p.updated_at ?? new Date().toISOString()),
   });
   return (
     <div className="mx-auto max-w-3xl px-6 py-8 pb-24">
@@ -195,6 +212,57 @@ function MePage() {
                 </ul>
               )}
             </div>
+          </div>
+        )}
+      </div>
+
+      <div className="rounded-2xl bg-card border border-border p-6 mb-6">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <div className="font-display text-lg flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-primary" />
+              Trust score
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Built from verifications, photos, family links and profile quality.
+            </p>
+          </div>
+          <div className="font-display text-2xl text-primary">
+            {trust.score}
+            <span className="text-sm text-muted-foreground">/100</span>
+          </div>
+        </div>
+        <Progress
+          value={trust.score}
+          className="mt-3"
+          aria-label={`Trust score ${trust.score} out of 100`}
+        />
+        <dl className="mt-4 grid sm:grid-cols-2 gap-x-8 gap-y-2 text-sm">
+          {trust.factors.map((f) => (
+            <div key={f.key} className="flex justify-between gap-3">
+              <dt className={f.score >= 1 ? "text-foreground" : "text-muted-foreground"}>
+                {f.label}
+              </dt>
+              <dd className="font-medium tabular-nums">
+                {Math.round(f.score * f.weight)}/{f.weight}
+              </dd>
+            </div>
+          ))}
+        </dl>
+        {trust.suggestions.length > 0 && (
+          <div className="mt-4 rounded-xl bg-secondary/40 border border-border p-3 text-sm">
+            <span className="font-medium">Boost your trust: </span>
+            {trust.suggestions[0].action}
+            {trust.suggestions.length > 1 && (
+              <ul className="mt-1.5 space-y-1 text-muted-foreground">
+                {trust.suggestions.slice(1, 3).map((s, i) => (
+                  <li key={i} className="flex gap-1.5">
+                    <ArrowRight className="w-3.5 h-3.5 shrink-0 mt-0.5" />
+                    {s.action}
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         )}
       </div>
