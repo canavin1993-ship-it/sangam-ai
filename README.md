@@ -1,43 +1,51 @@
-# 🏛️ Jangama Matrimony - AI-Powered Matrimonial Platform
+# 🏛️ Jangama Matrimony — AI-Assisted Matrimonial Platform
 
-> The world's most advanced matrimonial platform built exclusively for the Jangama Veerashaiva-Lingayat community.
+> A matrimonial platform for the Jangama Veerashaiva-Lingayat community, built
+> on deterministic, explainable matching engines with AI interpretation.
 
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Node](https://img.shields.io/badge/node-%3E%3D18.0.0-green.svg)
 ![TypeScript](https://img.shields.io/badge/typescript-5.x-blue.svg)
 
-## ✨ Features
+Release status: **v1.0-rc1** — see [RELEASE.md](RELEASE.md) for the gate checklist.
 
-### 🔐 Authentication & Security
-- **Firebase Phone OTP** - Free tier (~10,000/month verifications)
-- **Supabase Auth** - Email/password and Google OAuth
-- **Privacy Controls** - Granular visibility settings
+## ✨ Features (as implemented)
 
-### 🤖 AI-Powered Matching
-- **Gemini AI Compatibility** - Deep profile analysis
-- **Game Theory Matching** - Stable marriage algorithm
-- **Psychology Assessment** - Big Five, Attachment, Love Languages
+### 🤖 Matching & recommendations
+- **AI compatibility v2** — structured, explainable output (score, confidence,
+  six category scores, green/red flags, conversation starters, missing info,
+  recommendation), consuming both members' partner expectations; per-viewer
+  directional caching with staleness invalidation
+- **Structured partner preferences** — versioned JSONB (age/height ranges,
+  sub-sect, location, education, profession, lifestyle, must-haves,
+  deal-breakers), merge-safe saves
+- **Ranked discover & search** — pure `recommend()` pipeline: exclusions
+  (blocks, sent interests, dismissed/hidden) → eligibility → weighted ranking →
+  seen-last freshness → diversity, with "Recommended because…" reasons
+- **Interaction events** — dismiss/hide/profile-opened feedback loop
 
-### 👨‍👩‍👧‍👦 Family Features
-- **Family Workspace** - Parents participate in decisions
-- **Gotra Compatibility** - Traditional matchmaking rules
-- **Guru Lineage Matching** - Community heritage alignment
+### 🪔 Jatakam (Beta)
+- Deterministic Guna Milan (ashta-koota, /36) from birth details: truncated
+  Meeus lunar theory, Lahiri ayanamsa, nakshatra/rashi, dosha blockers in
+  plain language; the AI interprets these results, never invents them.
+  **Beta until astrologer validation completes** (`scripts/astro-validation.ts`).
 
-### 🎮 Gamification (Octalysis Framework)
-- **8 Core Drives** - Epic Meaning, Achievement, Empowerment
-- **50+ Achievements** - Unlock rewards
-- **XP & Levels** - Progressive engagement
-- **Streaks & Leaderboards** - Daily engagement
+### ⭐ Trust & profile quality
+- **Trust score** (0–100) from verifications, approved photos, family links,
+  completeness, activity — only signals the owner is authorized to read
+- **Profile completeness** with impact-ordered, data-driven suggestions
+
+### 👨‍👩‍👧 Family & safety
+- Family member invitations (parent/sibling/relative/matchmaker roles)
+- Blocks, reports, verification workflow (mobile/email/ID/selfie), photo
+  moderation, RLS on every table
 
 ### 💰 Monetization
-- **Coupon System** - FOUNDING50, JANGAMA2024, COMMUNITY10
-- **Referral Program** - Invite & earn rewards
-- **Premium Tiers** - Free, Premium (₹999/mo), Elite (₹1999/mo)
+- Premium tiers via Razorpay (order + webhook lifecycle)
 
-### ⭐ Trust & Reputation
-- **Trust Score** (0-100) - Based on verifications
-- **Match Ratings** - Post-interaction feedback
-- **Success Stories** - Community testimonials
+### 🧪 Quality gates
+- `scripts/selfcheck.ts` — correctness · `scripts/eval.ts` — recommendation
+  quality personas · `scripts/astro-validation.ts` — domain validation
 
 ## 🚀 Tech Stack
 
@@ -111,22 +119,24 @@ npx supabase db push
 ```
 
 ### Key Tables
-- `profiles` - User profiles
-- `photos` - Profile photos
-- `interests` - Interest expressions
+- `profiles` - User profiles (incl. `partner_expectations`, `astro` JSONB)
+- `photos` - Profile photos (moderated)
+- `interests` / `shortlists` - Expressions of interest
+- `matches` - Cached AI compatibility (per-viewer, directional)
+- `profile_events` - Interaction feedback (dismiss/hide/opened)
 - `conversations` / `messages` - Chat
-- `subscriptions` - Paid plans
-- `user_xp` / `user_achievements` - Gamification
-- `psychology_profiles` - Personality data
-- `matches` / `match_quality_cache` - AI matching
+- `family_members` - Family account links
+- `verifications` / `reports` / `blocks` - Trust & safety
+- `subscriptions` / `payment_events` - Paid plans
 
 ## 🌐 API Routes
 
 | Route | Method | Description |
 |-------|--------|-------------|
-| `/api/compatibility` | POST | Get AI compatibility score |
-| `/api/recommended-matches` | GET | Get AI-recommended profiles |
 | `/api/public/razorpay-webhook` | POST | Payment webhook |
+
+AI compatibility, billing, phone verification, and landing stats run as
+TanStack Start server functions in `src/lib/*.functions.ts` (not REST routes).
 
 ## 📁 Project Structure
 
@@ -136,10 +146,12 @@ src/
 │   └── ui/            # shadcn/ui components
 ├── hooks/              # Custom React hooks
 ├── integrations/       # Supabase, Firebase, Lovable
-├── lib/                # Business logic & utilities
-│   ├── ai-*.ts        # AI matching functions
-│   ├── gamification/  # Octalysis engine
-│   └── matching/      # Game theory matching
+├── lib/                # Engines & server functions
+│   ├── matching.functions.ts   # AI compatibility v2 (server fn)
+│   ├── ranking.ts / ranking.queries.ts  # recommend() pipeline
+│   ├── astro.ts                # Jatakam engine (Beta)
+│   ├── partner-expectations.ts # versioned preference schema
+│   ├── profile-completeness.ts / trust-score.ts
 ├── routes/            # Page components
 │   ├── _authenticated/ # Protected routes
 │   └── api/           # API endpoints
@@ -171,16 +183,6 @@ npm run build
 # Deploy .output/public to any static host
 ```
 
-## 🎯 Coupon Codes (Pre-seeded)
-
-| Code | Discount | Description |
-|------|----------|-------------|
-| `FOUNDING50` | 50% | Founding member discount |
-| `JANGAMA2024` | 30% | Launch special |
-| `COMMUNITY10` | 10% | Community reward |
-| `REFER5` | 5% | Per referral |
-| `TRIAL7` | 7 days | Free trial |
-
 ## 🧪 Testing
 
 ```bash
@@ -192,15 +194,10 @@ npm run build
 
 # Preview production build
 npm run preview
+
+# Quality suites (correctness / recommendation quality / domain validation)
+# see RELEASE.md for the one-liner
 ```
-
-## 📊 Gamification Achievements
-
-- 🌟 **Profile Master** - Complete 100% profile
-- 💬 **Social Butterfly** - Send 50 interests
-- 🔥 **Streak Champion** - 30-day active streak
-- 🏆 **Match Maker** - 10 successful matches
-- 👨‍👩‍👧‍👦 **Family Hero** - Invite 5 family members
 
 ## 🤝 Contributing
 
