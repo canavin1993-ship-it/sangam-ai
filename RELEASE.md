@@ -63,6 +63,30 @@ Deploy the RC (`npm run build`, then Vercel project `sangam-ai` or
 observability (cache hit rate, recommendation latency, verification funnel,
 birth-data completion) — metrics before more features.
 
+## Go / No-Go
+
+**Go** when ALL of:
+
+- [ ] All three migrations applied (in order)
+- [ ] Generated DB types refreshed; `as never` casts removed
+- [ ] Cache lifecycle verified end to end (4 steps above)
+- [ ] `tsc --noEmit` — zero errors
+- [ ] `eslint .` — zero errors
+- [ ] `npm run build` passes
+- [ ] selfcheck passes
+- [ ] eval corpus passes
+- [ ] astro-validation passes (Beta exceptions documented as pending, not failing)
+- [ ] Smoke test on the production deployment (sign up → onboard → discover → profile → interest)
+
+**No-Go** if ANY of:
+
+- Any migration unapplied
+- Compatibility cache writes still failing (console warning from `matching.functions.ts`)
+- Generated types stale (casts still present)
+- Recommendation eval regresses
+- A `verified` astrologer fixture fails
+- Production smoke test reveals a blocking issue
+
 ## After all gates: v1.1
 
 Numerology engine (same evidentiary standard: deterministic, stated method,
