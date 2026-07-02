@@ -4,6 +4,7 @@ import { generateText, Output } from "ai";
 import { z } from "zod";
 import { createLovableAiGatewayProvider } from "./ai-gateway.server";
 import { parsePartnerExpectations, type PartnerExpectations } from "./partner-expectations";
+import { birthChart, gunaMilan, parseAstro, type GunaMilan } from "./astro";
 import type { Json } from "@/integrations/supabase/types";
 
 const InputSchema = z.object({ otherProfileId: z.string().uuid() });
@@ -32,11 +33,12 @@ type ProfileLite = {
   smoking: string | null;
   about: string | null;
   partner_expectations: unknown;
+  astro?: unknown;
   updated_at: string;
 };
 
 const PROFILE_COLS =
-  "id, display_name, gender, date_of_birth, height_cm, mother_tongue, sub_sect, gotra, guru_lineage, ishtalinga_practicing, marital_status, education, profession, annual_income_inr, city, state, country, native_district, diet, drinking, smoking, about, partner_expectations, updated_at";
+  "id, display_name, gender, date_of_birth, height_cm, mother_tongue, sub_sect, gotra, guru_lineage, ishtalinga_practicing, marital_status, education, profession, annual_income_inr, city, state, country, native_district, diet, drinking, smoking, about, partner_expectations, astro, updated_at";
 
 function ageFrom(dob: string | null): number | null {
   if (!dob) return null;
@@ -182,10 +184,18 @@ export const getCompatibility = createServerFn({ method: "POST" })
       );
     }
 
-    const { data: profiles, error } = await supabase
+    // Cast: astro column is newer than the generated Database types.
+    // Falls back to the pre-astro column list until the migration is applied.
+    let { data: profiles, error } = await supabase
       .from("profiles")
-      .select(PROFILE_COLS)
+      .select(PROFILE_COLS as "id")
       .in("id", [userId, data.otherProfileId]);
+    if (error?.message.includes("astro")) {
+      ({ data: profiles, error } = await supabase
+        .from("profiles")
+        .select(PROFILE_COLS.replace(", astro", "") as "id")
+        .in("id", [userId, data.otherProfileId]));
+    }
     if (error) throw new Error(error.message);
     const me = profiles?.find((p) => p.id === userId) as ProfileLite | undefined;
     const other = profiles?.find((p) => p.id === data.otherProfileId) as ProfileLite | undefined;
@@ -222,6 +232,31 @@ export const getCompatibility = createServerFn({ method: "POST" })
     const myExpectations = setExpectations(parsePartnerExpectations(me.partner_expectations));
     const theirExpectations = setExpectations(parsePartnerExpectations(other.partner_expectations));
 
+    // Deterministic Jatakam: computed here, consumed (never recalculated) by the model.
+    let gm: GunaMilan | null = null;
+    if (me.date_of_birth && other.date_of_birth) {
+      const myChart = birthChart(me.date_of_birth, parseAstro(me.astro));
+      const otherChart = birthChart(other.date_of_birth, parseAstro(other.astro));
+      if (myChart && otherChart) {
+        const [g, b] = me.gender === "female" ? [otherChart, myChart] : [myChart, otherChart];
+        gm = gunaMilan(g, b);
+      }
+    }
+    const jatakamSection = gm
+      ? `\n\nDETERMINISTIC JATAKAM (Guna Milan) — precomputed astronomically; do NOT recalculate, only interpret:\n${JSON.stringify(
+          {
+            totalPoints: gm.totalPoints,
+            outOf: 36,
+            kootas: gm.kootas,
+            blockers: gm.blockers,
+            confidence: gm.confidence,
+            charts: { groom: gm.groomChart, bride: gm.brideChart },
+          },
+          null,
+          2,
+        )}\nWeigh this strongly if either member requires horoscope matching; otherwise mention it as context. Reflect blockers in redFlags with plain-language explanations.`
+      : `\n\nJATAKAM: not computable — one or both members have not provided birth details. If either requires horoscope matching, list the missing birth details in missingInfo.`;
+
     const prompt = `You are a compatibility analyst for the Jangama (Veerashaiva-Lingayat) matrimonial community. Assess how compatible the CANDIDATE is for the VIEWER, for marriage.
 
 Scoring rules:
@@ -245,7 +280,7 @@ CANDIDATE:
 ${JSON.stringify(summarise(other), null, 2)}
 
 CANDIDATE'S PARTNER EXPECTATIONS:
-${JSON.stringify(theirExpectations, null, 2)}`;
+${JSON.stringify(theirExpectations, null, 2)}${jatakamSection}`;
 
     const { output } = await generateText({
       model,

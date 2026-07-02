@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useServerFn } from "@tanstack/react-start";
 import { getCompatibility } from "@/lib/matching.functions";
 import { logProfileEvent } from "@/lib/ranking.queries";
+import { birthChart, gunaMilan, parseAstro, type GunaMilan } from "@/lib/astro";
 import { useNavigate } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -101,6 +102,7 @@ function ProfilePage() {
   const [shortlisted, setShortlisted] = useState(false);
   const [compat, setCompat] = useState<Compat | null>(null);
   const [loadingCompat, setLoadingCompat] = useState(false);
+  const [gm, setGm] = useState<GunaMilan | null>(null);
   const compatFn = useServerFn(getCompatibility);
 
   useEffect(() => {
@@ -126,6 +128,30 @@ function ProfilePage() {
       const { data: u } = await supabase.auth.getUser();
       if (!u.user) return;
       if (u.user.id !== id) logProfileEvent(u.user.id, id, "profile_opened"); // fire-and-forget
+
+      // Jatakam: both moon charts are derivable client-side from readable rows.
+      const { data: mine } = await supabase
+        .from("profiles")
+        .select("date_of_birth, gender, astro" as never)
+        .eq("id", u.user.id)
+        .maybeSingle();
+      const my = mine as {
+        date_of_birth: string | null;
+        gender: string | null;
+        astro?: unknown;
+      } | null;
+      // Candidate's row was already fetched above via select("*").
+      const their = data as (Profile & { astro?: unknown }) | null;
+      if (my?.date_of_birth && their?.date_of_birth) {
+        const myChart = birthChart(my.date_of_birth, parseAstro(my.astro));
+        const theirChart = birthChart(their.date_of_birth, parseAstro(their.astro));
+        if (myChart && theirChart) {
+          // Guna Milan is groom/bride directional; fall back to viewer-as-groom.
+          const [g, b] = my.gender === "female" ? [theirChart, myChart] : [myChart, theirChart];
+          setGm(gunaMilan(g, b));
+        }
+      }
+
       const [{ data: interest }, { data: shortlist }] = await Promise.all([
         supabase
           .from("interests")
@@ -316,6 +342,66 @@ function ProfilePage() {
             ))}
         </dl>
       </div>
+
+      {gm && (
+        <div className="mt-6 rounded-2xl bg-card border border-border p-6">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="text-xs uppercase tracking-widest text-muted-foreground">
+                Jatakam — Guna Milan
+              </div>
+              <div className="font-display text-4xl text-primary mt-1">
+                {gm.totalPoints}
+                <span className="text-xl text-muted-foreground">/36</span>
+              </div>
+            </div>
+            <div className="text-right text-sm text-muted-foreground">
+              <div>
+                {gm.groomChart.nakshatra} · {gm.groomChart.rashi}
+              </div>
+              <div>
+                {gm.brideChart.nakshatra} · {gm.brideChart.rashi}
+              </div>
+              <div className="mt-1 text-xs">Confidence {gm.confidence}%</div>
+            </div>
+          </div>
+          <div className="mt-4 grid sm:grid-cols-2 gap-x-8 gap-y-2 text-sm">
+            {gm.kootas.map((k) => (
+              <div
+                key={k.name}
+                className="flex justify-between gap-3 border-b border-border/50 pb-1.5"
+              >
+                <span className="text-muted-foreground">
+                  {k.name} <span className="text-xs">({k.note})</span>
+                </span>
+                <span className="font-medium tabular-nums">
+                  {k.points}/{k.max}
+                </span>
+              </div>
+            ))}
+          </div>
+          {gm.blockers.length > 0 && (
+            <ul className="mt-4 space-y-1.5 text-sm">
+              {gm.blockers.map((b, i) => (
+                <li key={i} className="flex gap-2">
+                  <AlertCircle className="w-4 h-4 text-accent shrink-0 mt-0.5" />
+                  <span>{b}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {gm.missingData.length > 0 && (
+            <div className="mt-4 text-xs text-muted-foreground">
+              <span className="font-semibold uppercase">Improve this estimate: </span>
+              {gm.missingData.join(" · ")}
+            </div>
+          )}
+          <p className="mt-3 text-xs text-muted-foreground">
+            Computed astronomically from birth details. Approximate — please verify important
+            decisions with your family astrologer.
+          </p>
+        </div>
+      )}
 
       {compat && (
         <div className="mt-6 rounded-2xl bg-card border border-border p-6">

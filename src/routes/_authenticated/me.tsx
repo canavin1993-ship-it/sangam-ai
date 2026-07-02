@@ -36,6 +36,7 @@ import {
 } from "@/lib/partner-expectations";
 import { computeCompleteness, type CompletenessInput } from "@/lib/profile-completeness";
 import { computeTrustScore } from "@/lib/trust-score";
+import { parseAstro, mergeAstro, birthChart, NAKSHATRAS, RASHIS } from "@/lib/astro";
 import type { Json } from "@/integrations/supabase/types";
 
 export const Route = createFileRoute("/_authenticated/me")({
@@ -365,6 +366,136 @@ function MePage() {
           onSaved={(pe) => setP((prev) => (prev ? { ...prev, partner_expectations: pe } : prev))}
         />
       )}
+
+      {uid && (
+        <BirthDetails
+          uid={uid}
+          stored={p.astro}
+          dateOfBirth={(p.date_of_birth as string | null) ?? null}
+        />
+      )}
+    </div>
+  );
+}
+
+const UTC_OFFSETS = [
+  { minutes: 330, label: "India (IST, +5:30)" },
+  { minutes: 240, label: "Gulf (+4:00)" },
+  { minutes: 0, label: "UK (GMT, 0:00)" },
+  { minutes: 60, label: "Central Europe (+1:00)" },
+  { minutes: -300, label: "US Eastern (−5:00)" },
+  { minutes: -480, label: "US Pacific (−8:00)" },
+  { minutes: 480, label: "Singapore (+8:00)" },
+  { minutes: 600, label: "Australia East (+10:00)" },
+] as const;
+
+function BirthDetails({
+  uid,
+  stored,
+  dateOfBirth,
+}: {
+  uid: string;
+  stored: unknown;
+  dateOfBirth: string | null;
+}) {
+  const initial = useMemo(() => parseAstro(stored), [stored]);
+  const [astro, setAstro] = useState(initial);
+  const [saving, setSaving] = useState(false);
+  const chart = dateOfBirth ? birthChart(dateOfBirth, astro) : null;
+
+  const save = async () => {
+    setSaving(true);
+    try {
+      const { data: fresh } = await supabase
+        .from("profiles")
+        .select("astro" as never)
+        .eq("id", uid)
+        .maybeSingle();
+      const merged = mergeAstro((fresh as Record<string, unknown> | null)?.astro, astro);
+      // Cast: astro column is newer than the generated Database types.
+      const { error } = await supabase
+        .from("profiles")
+        .update({ astro: merged } as never)
+        .eq("id", uid);
+      if (error) return toast.error(error.message);
+      toast.success("Birth details saved");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="mt-6 rounded-2xl bg-card border border-border p-6">
+      <div className="mb-1 font-display text-lg">Birth details (Jatakam)</div>
+      <p className="text-xs text-muted-foreground mb-5">
+        Used for horoscope matching (Guna Milan). Exact birth time matters — the moon can change
+        nakshatra within a day.
+      </p>
+      <div className="grid sm:grid-cols-3 gap-4">
+        <div>
+          <Label htmlFor="astro-time" className="text-xs text-muted-foreground">
+            Time of birth
+          </Label>
+          <Input
+            id="astro-time"
+            type="time"
+            className="mt-1"
+            value={astro.timeOfBirth ?? ""}
+            onChange={(e) => setAstro((a) => ({ ...a, timeOfBirth: e.target.value || null }))}
+          />
+        </div>
+        <div>
+          <Label htmlFor="astro-place" className="text-xs text-muted-foreground">
+            Place of birth
+          </Label>
+          <Input
+            id="astro-place"
+            className="mt-1"
+            placeholder="e.g. Hubballi, Karnataka"
+            value={astro.placeOfBirth ?? ""}
+            onChange={(e) => setAstro((a) => ({ ...a, placeOfBirth: e.target.value || null }))}
+          />
+        </div>
+        <div>
+          <Label htmlFor="astro-tz" className="text-xs text-muted-foreground">
+            Birth time zone
+          </Label>
+          <Select
+            value={String(astro.utcOffsetMinutes)}
+            onValueChange={(v) => setAstro((a) => ({ ...a, utcOffsetMinutes: Number(v) }))}
+          >
+            <SelectTrigger id="astro-tz" className="mt-1">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {UTC_OFFSETS.map((o) => (
+                <SelectItem key={o.minutes} value={String(o.minutes)}>
+                  {o.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+      {chart && (
+        <div className="mt-4 text-sm text-muted-foreground">
+          Your moon chart:{" "}
+          <span className="font-medium text-foreground">{NAKSHATRAS[chart.nakshatra]}</span>{" "}
+          nakshatra, <span className="font-medium text-foreground">{RASHIS[chart.rashi]}</span>{" "}
+          rashi
+          {chart.approximateTime && " (approximate — add your birth time for accuracy)"}
+        </div>
+      )}
+      {!dateOfBirth && (
+        <div className="mt-4 text-sm text-muted-foreground">
+          Add your date of birth in onboarding to see your moon chart.
+        </div>
+      )}
+      <div className="mt-5 flex justify-end">
+        <Button onClick={save} disabled={saving}>
+          {saving ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}Save birth details
+        </Button>
+      </div>
     </div>
   );
 }

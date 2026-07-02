@@ -19,6 +19,13 @@ import {
   recommend,
   type RankCandidate,
 } from "../src/lib/ranking";
+import {
+  moonTropicalLongitude,
+  birthChart,
+  gunaMilan,
+  parseAstro,
+  ASTRO_DEFAULTS,
+} from "../src/lib/astro";
 
 // --- parse tolerance ---
 assert.equal(parsePartnerExpectations(null).schemaVersion, 1);
@@ -312,5 +319,51 @@ const nullCity = recommend([persona("07", { city: null })], {
   limit: 5,
 });
 assert.equal(nullCity.length, 1);
+
+// --- astro: known-answer + invariants ---
+// Meeus, Astronomical Algorithms, example 47.a: 1992 Apr 12.0 TD (JD 2448724.5)
+// apparent moon longitude = 133.162655°. Truncated series + no nutation → ±0.1°.
+const meeus = moonTropicalLongitude(2448724.5);
+assert.ok(Math.abs(meeus - 133.1627) < 0.1, `Meeus 47.a: expected ≈133.16, got ${meeus}`);
+
+// chart derivation: sidereal = tropical − ayanamsa (≈23.7° in 1992)
+const chart = birthChart("1992-04-12", parseAstro({ timeOfBirth: "05:30", utcOffsetMinutes: 330 }));
+assert.ok(chart != null);
+assert.ok(chart!.siderealMoon >= 0 && chart!.siderealMoon < 360);
+assert.equal(chart!.approximateTime, false);
+const noTime = birthChart("1992-04-12", parseAstro({}));
+assert.equal(noTime!.approximateTime, true);
+assert.equal(birthChart("not-a-date", ASTRO_DEFAULTS), null);
+
+// guna milan invariants across a spread of charts
+const mkChart = (nak: number, rashiOf = Math.floor((nak * (360 / 27)) / 30)) => ({
+  siderealMoon: nak * (360 / 27) + 5,
+  nakshatra: nak,
+  rashi: rashiOf,
+  boundaryRisk: false,
+  approximateTime: false,
+});
+for (let g = 0; g < 27; g += 3) {
+  for (let b = 0; b < 27; b += 3) {
+    const gm = gunaMilan(mkChart(g), mkChart(b));
+    assert.ok(gm.totalPoints >= 0 && gm.totalPoints <= 36, `total out of range: ${gm.totalPoints}`);
+    assert.ok(gm.score >= 0 && gm.score <= 100);
+    assert.ok(gm.confidence >= 20 && gm.confidence <= 100);
+    assert.equal(gm.kootas.length, 8);
+  }
+}
+// same nakshatra ⇒ same nadi ⇒ nadi dosha blocker and 0/8
+const sameNak = gunaMilan(mkChart(4), mkChart(4));
+assert.equal(sameNak.kootas.find((k) => k.name === "Nadi")?.points, 0);
+assert.ok(sameNak.blockers.some((b) => b.includes("Nadi dosha")));
+// different nadi ⇒ full 8
+const diffNadi = gunaMilan(mkChart(0), mkChart(1)); // adi vs madhya
+assert.equal(diffNadi.kootas.find((k) => k.name === "Nadi")?.points, 8);
+// missing birth time lowers confidence and is named in missingData
+const gmApprox = gunaMilan({ ...mkChart(2), approximateTime: true }, mkChart(10));
+assert.ok(gmApprox.confidence < diffNadi.confidence);
+assert.ok(gmApprox.missingData.some((m) => m.includes("birth time")));
+// Manglik honestly reported as unsupported
+assert.ok(diffNadi.missingData.some((m) => m.includes("Manglik")));
 
 console.log("selfcheck OK");
