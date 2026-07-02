@@ -109,6 +109,14 @@ SELECT
 
 ## Deployment verification (publicly observable, no dashboard needed)
 
+Build anchors:
+
+```text
+Deployed to production since 2026-07-01 (stale): 0f8ca71
+Expected after any deploy:  git rev-parse --short origin/main   (do not hardcode — it moves)
+Gap at time of writing:     23 commits (git rev-list --count 0f8ca71..origin/main)
+```
+
 Which build is production running?
 
 ```sh
