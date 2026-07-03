@@ -28,38 +28,29 @@ export const getLandingStats = createServerFn({ method: "GET" }).handler(
   },
 );
 
+type StatsRow = {
+  verified_profiles: number;
+  total_profiles: number;
+  countries: number;
+  accepted_interests: number;
+};
+
 async function computeLandingStats(): Promise<LandingStats> {
-  const { supabaseAdmin } = await import("@/integrations/supabase/client.server");
-
-  const [verified, total, accepted, countryRows] = await Promise.all([
-    supabaseAdmin
-      .from("profiles")
-      .select("id", { head: true, count: "exact" })
-      .eq("is_verified", true)
-      .eq("status", "active"),
-    supabaseAdmin
-      .from("profiles")
-      .select("id", { head: true, count: "exact" })
-      .eq("status", "active"),
-    supabaseAdmin
-      .from("interests")
-      .select("id", { head: true, count: "exact" })
-      .eq("status", "accepted"),
-    supabaseAdmin
-      .from("profiles")
-      .select("country")
-      .eq("status", "active")
-      .not("country", "is", null),
-  ]);
-
-  const countries = new Set(
-    (countryRows.data ?? []).map((r) => (r.country ?? "").trim().toLowerCase()).filter(Boolean),
-  ).size;
-
+  // Uses the SECURITY DEFINER RPC public.get_landing_stats() (granted to anon),
+  // so the publishable-key client is enough — no SUPABASE_SERVICE_ROLE_KEY needed.
+  const { supabase } = await import("@/integrations/supabase/client");
+  // Cast: the get_landing_stats RPC is newer than the generated Database types.
+  const rpc = supabase.rpc as unknown as (
+    name: string,
+  ) => Promise<{ data: StatsRow[] | null; error: unknown }>;
+  const { data, error } = await rpc("get_landing_stats");
+  if (error) throw error;
+  const row = data?.[0];
+  if (!row) return ZERO_STATS;
   return {
-    verifiedProfiles: verified.count ?? 0,
-    totalProfiles: total.count ?? 0,
-    countries,
-    acceptedInterests: accepted.count ?? 0,
+    verifiedProfiles: Number(row.verified_profiles) || 0,
+    totalProfiles: Number(row.total_profiles) || 0,
+    countries: Number(row.countries) || 0,
+    acceptedInterests: Number(row.accepted_interests) || 0,
   };
 }

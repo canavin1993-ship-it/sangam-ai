@@ -4,11 +4,40 @@
   "framework": "vite",
   "installCommand": "npm install",
   "devCommand": "npm run dev",
-  "regions": ["iad1"],
+  "regions": [
+    "bom1"
+  ],
   "name": "sangam-ai-app",
   "env": {
     "VITE_SUPABASE_URL": "https://qaepqgewsduhftsjvjew.supabase.co",
     "VITE_SUPABASE_PROJECT_ID": "qaepqgewsduhftsjvjew",
     "VITE_SUPABASE_PUBLISHABLE_KEY": "sb_publishable_SPH_sdqDiTfugygyEY3Hag_Tv9X1loM"
-  }
+  },
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "SAMEORIGIN"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=()"
+        },
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=63072000; includeSubDomains; preload"
+        }
+      ]
+    }
+  ]
 }

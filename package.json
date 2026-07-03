@@ -10,7 +10,9 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "prettier --write .",
-    "prebuild": "node scripts/version.mjs"
+    "prebuild": "node scripts/version.mjs",
+    "typecheck": "tsc --noEmit",
+    "check": "for f in selfcheck eval astro-validation notifications-check; do node_modules/.bin/esbuild scripts/$f.ts --bundle --format=esm --platform=node --outfile=/tmp/gc-$f.mjs && node /tmp/gc-$f.mjs; done"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^3.0.2",
