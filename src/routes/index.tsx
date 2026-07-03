@@ -455,11 +455,20 @@ function SiteFooter() {
   return (
     <footer className="border-t border-border bg-card/40">
       <div className="mx-auto max-w-6xl px-6 py-12 flex flex-col md:flex-row items-center justify-between gap-6 text-sm text-muted-foreground">
-        <div className="flex items-center gap-2">
-          <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground font-display text-xs">
-            ಜ
-          </span>
-          <span>© {new Date().getFullYear()} Jangama Matrimony · For Jangama community only</span>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground font-display text-xs">
+              ಜ
+            </span>
+            <span>© {new Date().getFullYear()} Jangama Matrimony · For Jangama community only</span>
+          </div>
+          <span className="hidden sm:inline text-border">·</span>
+          <Link to="/privacy" className="hover:text-foreground">
+            Privacy
+          </Link>
+          <Link to="/terms" className="hover:text-foreground">
+            Terms
+          </Link>
         </div>
         <div className="flex items-center gap-4">
           <a

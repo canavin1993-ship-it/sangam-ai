@@ -55,7 +55,7 @@ Release status: **v1.0-rc1** — see [RELEASE.md](RELEASE.md) for the gate check
 | Backend | TanStack Start, Vite |
 | Database | Supabase (PostgreSQL + RLS) |
 | Auth | Supabase Auth + Firebase OTP |
-| AI | Google Gemini via Lovable AI Gateway |
+| AI | Google Gemini via AI gateway |
 | Payments | Razorpay |
 | Icons | Lucide React |
 | Forms | React Hook Form + Zod |
@@ -98,7 +98,7 @@ VITE_SUPABASE_ANON_KEY=your-anon-key
 RAZORPAY_KEY_ID=rzp_test_xxxxx
 RAZORPAY_KEY_SECRET=xxxxxxxx
 
-# Lovable AI (Gemini)
+# AI gateway (Gemini)
 LOVABLE_API_KEY=your-key
 
 # Firebase (Phone OTP)
@@ -145,7 +145,7 @@ src/
 ├── components/          # Reusable UI components
 │   └── ui/            # shadcn/ui components
 ├── hooks/              # Custom React hooks
-├── integrations/       # Supabase, Firebase, Lovable
+├── integrations/       # Supabase, Firebase, auth
 ├── lib/                # Engines & server functions
 │   ├── matching.functions.ts   # AI compatibility v2 (server fn)
 │   ├── ranking.ts / ranking.queries.ts  # recommend() pipeline
@@ -218,4 +218,4 @@ MIT License - see LICENSE file.
 
 ---
 
-*Built with ❤️ for the Jangama community*
+*Made with ❤️ for the Jangama community*

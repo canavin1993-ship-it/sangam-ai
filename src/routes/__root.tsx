@@ -115,13 +115,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       {
         property: "og:image",
-        content:
-          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/d8adfbd5-745f-44b5-8d3f-ce7fefff05bc/id-preview-d21b18d7--8d0487a3-b48f-46ca-96fa-db84a5972c8e.lovable.app-1782918978835.png",
+        content: "https://jangamamatrimony.com/og-image.png",
       },
       {
         name: "twitter:image",
-        content:
-          "https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/d8adfbd5-745f-44b5-8d3f-ce7fefff05bc/id-preview-d21b18d7--8d0487a3-b48f-46ca-96fa-db84a5972c8e.lovable.app-1782918978835.png",
+        content: "https://jangamamatrimony.com/og-image.png",
       },
     ],
     links: [
