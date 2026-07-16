@@ -169,10 +169,10 @@ export function birthChart(dateOfBirth: string, astro: AstroData): BirthChart | 
 // ---------------------------------------------------------------------------
 // Ashta-koota tables (indexes follow NAKSHATRAS / RASHIS above)
 // ---------------------------------------------------------------------------
-type Gana = "deva" | "manushya" | "rakshasa";
+export type Gana = "deva" | "manushya" | "rakshasa";
 type Nadi = "adi" | "madhya" | "antya";
 
-const GANA: Gana[] = [
+export const GANA: Gana[] = [
   "deva",
   "manushya",
   "rakshasa",
@@ -201,7 +201,7 @@ const GANA: Gana[] = [
   "manushya",
   "deva",
 ];
-const YONI = [
+export const YONI = [
   "horse",
   "elephant",
   "sheep",
@@ -261,7 +261,7 @@ const NADI: Nadi[] = [
 ];
 // Sworn-enemy yoni pairs (0 points); same yoni 4; otherwise neutral 2.
 // ponytail: full 14×14 yoni matrix if a pandit review requires finer grading.
-const YONI_ENEMIES: Array<[string, string]> = [
+export const YONI_ENEMIES: Array<[string, string]> = [
   ["cow", "tiger"],
   ["elephant", "lion"],
   ["horse", "buffalo"],
@@ -271,8 +271,8 @@ const YONI_ENEMIES: Array<[string, string]> = [
   ["cat", "rat"],
 ];
 
-type Planet = "sun" | "moon" | "mars" | "mercury" | "jupiter" | "venus" | "saturn";
-const RASHI_LORD: Planet[] = [
+export type Planet = "sun" | "moon" | "mars" | "mercury" | "jupiter" | "venus" | "saturn";
+export const RASHI_LORD: Planet[] = [
   "mars",
   "venus",
   "mercury",
@@ -286,7 +286,7 @@ const RASHI_LORD: Planet[] = [
   "saturn",
   "jupiter",
 ];
-const FRIENDS: Record<Planet, Planet[]> = {
+export const FRIENDS: Record<Planet, Planet[]> = {
   sun: ["moon", "mars", "jupiter"],
   moon: ["sun", "mercury"],
   mars: ["sun", "moon", "jupiter"],
@@ -295,7 +295,7 @@ const FRIENDS: Record<Planet, Planet[]> = {
   venus: ["mercury", "saturn"],
   saturn: ["mercury", "venus"],
 };
-const ENEMIES: Record<Planet, Planet[]> = {
+export const ENEMIES: Record<Planet, Planet[]> = {
   sun: ["venus", "saturn"],
   moon: [],
   mars: ["mercury"],
@@ -336,7 +336,7 @@ const GANA_POINTS: Record<Gana, Record<Gana, number>> = {
   rakshasa: { deva: 1, manushya: 0, rakshasa: 6 },
 };
 
-function relation(a: Planet, b: Planet): "friend" | "enemy" | "neutral" {
+export function relation(a: Planet, b: Planet): "friend" | "enemy" | "neutral" {
   if (FRIENDS[a].includes(b)) return "friend";
   if (ENEMIES[a].includes(b)) return "enemy";
   return "neutral";

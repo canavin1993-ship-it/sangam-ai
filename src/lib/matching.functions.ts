@@ -1,10 +1,12 @@
 import { createServerFn } from "@tanstack/react-start";
 import { requireSupabaseAuth } from "@/integrations/supabase/auth-middleware";
-import { generateText, Output } from "ai";
 import { z } from "zod";
-import { createLovableAiGatewayProvider } from "./ai-gateway.server";
+import { generateJson } from "./ai-json.server";
+import { createAiProvider, DEFAULT_AI_MODEL } from "./ai-gateway.server";
 import { parsePartnerExpectations, type PartnerExpectations } from "./partner-expectations";
-import { birthChart, gunaMilan, parseAstro, type GunaMilan } from "./astro";
+import { birthChart, parseAstro } from "./astro";
+import { dasaPoruthamFromCharts } from "./porutham";
+import { numerologyCompatibility } from "./numerology";
 import type { Json } from "@/integrations/supabase/types";
 
 const InputSchema = z.object({ otherProfileId: z.string().uuid() });
@@ -216,37 +218,57 @@ export const getCompatibility = createServerFn({ method: "POST" })
       if (parsed?.success) return toResponse(parsed.data, true);
     }
 
-    const key = process.env.LOVABLE_API_KEY;
-    if (!key) throw new Error("Missing LOVABLE_API_KEY");
-    const gateway = createLovableAiGatewayProvider(key);
-    const model = gateway("google/gemini-3-flash-preview");
+    const gateway = createAiProvider();
+    const model = gateway(DEFAULT_AI_MODEL);
 
     const myExpectations = setExpectations(parsePartnerExpectations(me.partner_expectations));
     const theirExpectations = setExpectations(parsePartnerExpectations(other.partner_expectations));
 
-    // Deterministic Jatakam: computed here, consumed (never recalculated) by the model.
-    let gm: GunaMilan | null = null;
-    if (me.date_of_birth && other.date_of_birth) {
-      const myChart = birthChart(me.date_of_birth, parseAstro(me.astro));
-      const otherChart = birthChart(other.date_of_birth, parseAstro(other.astro));
-      if (myChart && otherChart) {
-        const [g, b] = me.gender === "female" ? [otherChart, myChart] : [myChart, otherChart];
-        gm = gunaMilan(g, b);
-      }
+    // Deterministic Jatakam for the South Indian (Jangama, Telugu/Kannada) tradition:
+    // Dasa Porutham (10-porutham) + numerology. Computed here, consumed — never
+    // recalculated — by the model. Bride = the female profile.
+    const [bride, groom] =
+      me.gender === "female" ? [me, other] : other.gender === "female" ? [other, me] : [me, other];
+    let porutham: ReturnType<typeof dasaPoruthamFromCharts> | null = null;
+    if (bride.date_of_birth && groom.date_of_birth) {
+      const brideChart = birthChart(bride.date_of_birth, parseAstro(bride.astro));
+      const groomChart = birthChart(groom.date_of_birth, parseAstro(groom.astro));
+      if (brideChart && groomChart) porutham = dasaPoruthamFromCharts(brideChart, groomChart);
     }
-    const jatakamSection = gm
-      ? `\n\nDETERMINISTIC JATAKAM (Guna Milan) — precomputed astronomically; do NOT recalculate, only interpret:\n${JSON.stringify(
+    const numerology =
+      bride.date_of_birth && groom.date_of_birth
+        ? numerologyCompatibility(bride.date_of_birth, groom.date_of_birth)
+        : null;
+
+    const jatakamSection = porutham
+      ? `\n\nDETERMINISTIC JATAKAM — South Indian Dasa Porutham (10-porutham), precomputed astronomically; do NOT recalculate, only interpret:\n${JSON.stringify(
           {
-            totalPoints: gm.totalPoints,
-            outOf: 36,
-            kootas: gm.kootas,
-            blockers: gm.blockers,
-            confidence: gm.confidence,
-            charts: { groom: gm.groomChart, bride: gm.brideChart },
+            total: porutham.total,
+            outOf: 10,
+            category: porutham.category,
+            poruthams: porutham.poruthams,
+            blockers: porutham.blockers,
+            confidence: porutham.confidence,
+            charts: { bride: porutham.bride, groom: porutham.groom },
+            approximateRashi: porutham.approximateRashi,
           },
           null,
           2,
-        )}\nWeigh this strongly if either member requires horoscope matching; otherwise mention it as context. Reflect blockers in redFlags with plain-language explanations.`
+        )}${
+          numerology
+            ? `\n\nNUMEROLOGY (advisory, do NOT recalculate):\n${JSON.stringify(
+                {
+                  bride: numerology.bride,
+                  groom: numerology.groom,
+                  moolankRelation: numerology.moolankRelation,
+                  bhagyankRelation: numerology.bhagyankRelation,
+                  blockers: numerology.blockers,
+                },
+                null,
+                2,
+              )}`
+            : ""
+        }\nWeigh the Porutham strongly if either member requires horoscope matching; otherwise present it as context. Reflect Porutham blockers (Rajju/Bhakoot/Vedha/Yoni doshas) in redFlags with plain-language explanations. Treat numerology as light supporting colour only.`
       : `\n\nJATAKAM: not computable — one or both members have not provided birth details. If either requires horoscope matching, list the missing birth details in missingInfo.`;
 
     const prompt = `You are a compatibility analyst for the Jangama (Veerashaiva-Lingayat) matrimonial community. Assess how compatible the CANDIDATE is for the VIEWER, for marriage.
@@ -274,11 +296,7 @@ ${JSON.stringify(summarise(other), null, 2)}
 CANDIDATE'S PARTNER EXPECTATIONS:
 ${JSON.stringify(theirExpectations, null, 2)}${jatakamSection}`;
 
-    const { output } = await generateText({
-      model,
-      output: Output.object({ schema: CompatV2Schema }),
-      prompt,
-    });
+    const output = await generateJson(model, prompt, CompatV2Schema);
 
     // Preserve the other viewer's cached result if still fresh; otherwise start clean.
     const prior = cachedRow?.ai_reason as { v?: number; byViewer?: Record<string, unknown> } | null;
